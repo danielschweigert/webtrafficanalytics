@@ -14,7 +14,10 @@ class Firehose(object):
 			self.bootstrap_servers = line1.strip().split('=')[1].split(',')
 
 			line2 = f.readline()
-			self.topic = line2.strip().split('=')[1]
+			self.port = line2.strip().split('=')[1]
+
+			line3 = f.readline()
+			self.topic = line3.strip().split('=')[1]
 
 			self.producer = Producer({'bootstrap.servers': ','.join(self.bootstrap_servers), 'queue.buffering.max.messages':100000, 'queued.max.messages.kbytes':1000000000, 'acks':'all', 'enable.auto.commit':'true'})
 
@@ -23,8 +26,8 @@ class Firehose(object):
 		print 'connected to kafka bootstrap.servers:'
 		for bs in self.bootstrap_servers:
 			print bs
-		print 'subscribed to topic:'
-		print self.topic
+		print 'producing to topic:'
+		print '-> ' + self.topic
 
 	def start(self):
 		raise NotImplementedError()
@@ -44,25 +47,25 @@ class StandardFirehose(Firehose):
 			aws_secret_key = line2.strip().split('=')[1]
 
 			line3 = f.readline()
-			bucket_name = line3.strip().split('=')[1]
+			self.bucket_name = line3.strip().split('=')[1]
 
 		# initiating S3 session
 		self.session = Session(aws_access_key_id=aws_access_key,
         	          aws_secret_access_key=aws_secret_key)
 		self.s3 = self.session.resource('s3')
-		self.bucket = self.s3.Bucket(bucket_name)
+		self.bucket = self.s3.Bucket(self.bucket_name)
 
 		# report to console
 		print '---'
 		print 'connected to S3 bucket:'
-		print self.bucket_name
+		print '-> ' + self.bucket_name
 
 	def start(self):
 		for s3_file in self.bucket.objects.all():
 			if s3_file.key.lower().endswith('.csv'):
 
 				# report to console
-				print 'uploading data from file: ' + s3_file.key
+				print 'producing to kafka topic ' + self.topic + ' data from file: ' + s3_file.key
 
 				obj = s3_file.Object()
 				content = obj.get()['Body'].read()
