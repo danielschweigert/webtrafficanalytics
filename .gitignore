@@ -1,0 +1,5 @@
+webtrafficanalytics.sublime-project
+webtrafficanalytics.sublime-workspace
+*.pyc
+*.config
+*.config~
