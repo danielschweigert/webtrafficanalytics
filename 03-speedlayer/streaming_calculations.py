@@ -11,7 +11,7 @@ import io
 from avro.io import BinaryDecoder
 
 # start this job with:
-# $SPARK_HOME/bin/spark-submit --master spark://ip-10-0-0-7:7077 --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 03-speedlayer/stream_total_visits.py 
+# $SPARK_HOME/bin/spark-submit --master spark://ip-10-0-0-7:7077 --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 03-speedlayer/streaming_calculations.py 
 
 os.environ['PYSPARK_SUBMIT_ARGS'] = '--packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 pyspark-shell'
 
@@ -19,7 +19,8 @@ CASSANDRA_RESOURCE_LOCATION = 'resources/cassandra.config'
 KAFKA_RESOURCE_LOCATION = 'resources/kafka.config'
 
 CASSANDRA_KEYSPACE = 'webtrafficanalytics'
-CASSANDRA_TABLE = 'visits'
+CASSANDRA_TABLE_VISITS = 'visits'
+CASSANDRA_TABLE_VOLUME = 'volume'
 
 # obtain kafka brokers from config
 with open(KAFKA_RESOURCE_LOCATION) as f:
@@ -36,7 +37,6 @@ with open(KAFKA_RESOURCE_LOCATION) as f:
 	
 	line3 = f.readline()
 	kafka_topic = line3.strip().split('=')[1]
-
 
 # obtain cassandra hosts from config
 with open(CASSANDRA_RESOURCE_LOCATION) as f:
@@ -63,17 +63,24 @@ def updateFunc(new_values, last_sum):
 		return None
 	return sum(new_values) + (last_sum or 0)
 
-def sendPartition(iter):
+def sendPartitionCount(iter):
 	cassandra_cluster = Cluster(cassandra_hosts)
 	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
 	for record in iter:
-		sql_statement = "INSERT INTO " + CASSANDRA_TABLE + " (type, event_time, count) VALUES ('total', \'" + str(record[0]) + "\', " +str(record[1])+ ")"
+		sql_statement = "INSERT INTO " + CASSANDRA_TABLE_VISITS + " (type, event_time, count) VALUES ('total', \'" + str(record[0]) + "\', " +str(record[1])+ ")"
 		cassandra_session.execute(sql_statement)
 	cassandra_cluster.shutdown()
 
+def sendPartitionVolume(iter):
+	cassandra_cluster = Cluster(cassandra_hosts)
+	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
+	for record in iter:
+		sql_statement = "INSERT INTO " + CASSANDRA_TABLE_VOLUME + " (type, event_time, volume) VALUES ('total', \'" + str(record[0]) + "\', " +str(record[1])+ ")"
+		cassandra_session.execute(sql_statement)
+	cassandra_cluster.shutdown()
 
 # registering the spark context
-conf = SparkConf().setAppName("03-stream_total_visits")
+conf = SparkConf().setAppName("03-streaming_calculations")
 sc = SparkContext(conf=conf)
 
 # this is only necessary for manual run and debugging
@@ -81,21 +88,23 @@ logger = sc._jvm.org.apache.log4j
 logger.LogManager.getLogger("org").setLevel( logger.Level.ERROR )
 logger.LogManager.getLogger("akka").setLevel( logger.Level.ERROR )
 
-# registering the streaming context
+# streaming context and checkpoint
 ssc = StreamingContext(sc, 1)
 ssc.checkpoint("hdfs://ec2-13-57-66-131.us-west-1.compute.amazonaws.com:9000/checkpoint/")
 
-# for stateful streaming an initial RDD is required
+# initial state RDD
 initialStateRDD = sc.parallelize([])
 
-# dstream from the kafka topic
+# obtaining stream from Kafka
 kafkaStream = KafkaUtils.createDirectStream(ssc, [kafka_topic], {"metadata.broker.list": kafka_brokers}, valueDecoder=avro_decoder)
 
-# aggregation on the dstream --> updating the state
-lines = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'][:5] + '-0800', 1)).reduceByKey(lambda a, b : a + b).updateStateByKey(updateFunc, initialRDD=initialStateRDD)
+# aggregations
+visits = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], 1)).reduceByKey(lambda a, b : a + b).updateStateByKey(updateFunc, initialRDD=initialStateRDD)
+volume = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], x['size'])).reduceByKey(lambda a, b : a + b).updateStateByKey(updateFunc, initialRDD=initialStateRDD)
 
-# sending the results to Cassandra (by partion)
-lines.foreachRDD(lambda rdd: rdd.foreachPartition(sendPartition))
+# insert to Cassandra database
+visits.foreachRDD(lambda rdd: rdd.foreachPartition(sendPartitionCount))
+volume.foreachRDD(lambda rdd: rdd.foreachPartition(sendPartitionVolume))
 
 ssc.start()
 ssc.awaitTermination()
