@@ -5,6 +5,11 @@ from pyspark.streaming import StreamingContext
 from pyspark.streaming.kafka import KafkaUtils
 from cassandra.cluster import Cluster
 
+import avro.schema
+import avro.io
+import io
+from avro.io import BinaryDecoder
+
 # start this job with:
 # $SPARK_HOME/bin/spark-submit --master spark://ip-10-0-0-7:7077 --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 03-speedlayer/stream_total_visits.py 
 
@@ -38,7 +43,20 @@ with open(CASSANDRA_RESOURCE_LOCATION) as f:
 	line1 = f.readline()
 	cassandra_hosts = line1.strip().split('=')[1].split(',')
 
+# load avro schema
+schema_path="resources/avro/sec_record.avsc"
+schema = avro.schema.parse(open(schema_path).read())
 
+# avro decoder function
+def avro_decoder(msg):
+	"""
+	This function is used to decode the avro messages in the 
+	kafka queue when the dstream object is obtained.
+	"""
+	bytes_reader = io.BytesIO(msg)
+	decoder = BinaryDecoder(bytes_reader)
+	reader = avro.io.DatumReader(schema)
+	return reader.read(decoder)
 
 def updateFunc(new_values, last_sum):
 	if new_values == []:
@@ -71,14 +89,13 @@ ssc.checkpoint("hdfs://ec2-13-57-66-131.us-west-1.compute.amazonaws.com:9000/che
 initialStateRDD = sc.parallelize([])
 
 # dstream from the kafka topic
-kafkaStream = KafkaUtils.createDirectStream(ssc, [kafka_topic], {"metadata.broker.list": kafka_brokers})
+kafkaStream = KafkaUtils.createDirectStream(ssc, [kafka_topic], {"metadata.broker.list": kafka_brokers}, valueDecoder=avro_decoder)
 
 # aggregation on the dstream --> updating the state
-lines = kafkaStream.map(lambda x: x[1]).map(lambda x : (x.split(',')[1] + ' ' + str(x.split(',')[2][:5]) + '-0800', 1)).reduceByKey(lambda a, b : a + b).updateStateByKey(updateFunc, initialRDD=initialStateRDD)
+lines = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'][:5] + '-0800', 1)).reduceByKey(lambda a, b : a + b).updateStateByKey(updateFunc, initialRDD=initialStateRDD)
 
 # sending the results to Cassandra (by partion)
 lines.foreachRDD(lambda rdd: rdd.foreachPartition(sendPartition))
-
 
 ssc.start()
 ssc.awaitTermination()
