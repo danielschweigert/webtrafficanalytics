@@ -1,0 +1,22 @@
+{"namespace": "sec_record.avro",
+ "type": "record",
+ "name": "visit",
+ "fields": [
+     {"name": "ip", "type": "string"},
+     {"name": "date",  "type": "string"},
+     {"name": "time",  "type": "string"},
+     {"name": "zone",  "type": "string"},
+     {"name": "cik",  "type": "string"},
+     {"name": "accession",  "type": "string"},
+     {"name": "extention",  "type": "string"},
+     {"name": "code",  "type": "string"},
+     {"name": "size",  "type": "int"},
+     {"name": "idx",  "type": "int"},
+     {"name": "norefer",  "type": "int"},
+     {"name": "noagent",  "type": "int"},
+     {"name": "find",  "type": "int"},
+     {"name": "crawler",  "type": "int"},
+     {"name": "browser",  "type": "string"}
+ ]
+}
+      
