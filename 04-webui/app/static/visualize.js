@@ -31,3 +31,37 @@ var layout = {
 
 Plotly.newPlot('chart1', data, layout);
 });
+
+
+// dashboard: volume requested (human and crawler)
+Plotly.d3.csv("static/volume.csv", function(err, rows){
+  function unpack(rows, key) {
+  return rows.map(function(row) { return row[key]; });
+}
+
+var trace1 = {
+  type: "scatter",
+  mode: "lines",
+  name: 'crawler',
+  x: unpack(rows, 'time'),
+  y: unpack(rows, 'crawler'),
+  line: {color: '#17BECF'}
+}
+
+var trace2 = {
+  type: "scatter",
+  mode: "lines",
+  name: 'human',
+  x: unpack(rows, 'time'),
+  y: unpack(rows, 'human'),
+  line: {color: '#7F7F7F'}
+}
+
+var data = [trace1,trace2];
+
+var layout = {
+  title: 'Website requests over time',
+};
+
+Plotly.newPlot('chart2', data, layout);
+});

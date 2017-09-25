@@ -17,11 +17,22 @@ cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
 # continuous querrying of updates
 while True:
 
+	# update local visits data set
 	sql_statement = "select event_time, total, unique from visits_type where type = 'all' order by event_time desc limit 7200"
 	rows = cassandra_session.execute(sql_statement)
 	with open('04-webui/app/static/visits.csv', 'w') as f:
 		f.write('time,total,unique,\n')
 		for row in rows:
 			f.write(row[0].strftime('%Y-%m-%d %H:%M:%S') + ', ' + str(row[1]) + ',' + str(row[2]) + ',\n')
+
+	# update local volume data set
+	sql_statement = "select event_time, crawler, human from volume_type where type = 'all' order by event_time desc limit 7200"
+	rows = cassandra_session.execute(sql_statement)
+	with open('04-webui/app/static/volume.csv', 'w') as f:
+		f.write('time,crawler,human,\n')
+		for row in rows:
+			f.write(row[0].strftime('%Y-%m-%d %H:%M:%S') + ', ' + str(row[1] or '0') + ',' + str(row[2] or '0') + ',\n')
+
+
 
 	time.sleep(1)
