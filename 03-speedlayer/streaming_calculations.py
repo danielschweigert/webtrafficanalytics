@@ -72,7 +72,7 @@ def send_count(iter):
 	cassandra_cluster = Cluster(cassandra_hosts)
 	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
 	for record in iter:
-		sql_statement = "INSERT INTO " + CASSANDRA_TABLE_VISITS + " (type, event_time, count) VALUES ('total', \'" + str(record[0]) + "\', " +str(record[1])+ ")"
+		sql_statement = "INSERT INTO " + CASSANDRA_TABLE_VISITS + " (type, event_time, count) VALUES ('total', \'" + str(record[0]) + "\', " + str(record[1]) + ")"
 		cassandra_session.execute(sql_statement)
 	cassandra_cluster.shutdown()
 
@@ -80,7 +80,7 @@ def send_volume(iter):
 	cassandra_cluster = Cluster(cassandra_hosts)
 	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
 	for record in iter:
-		sql_statement = "INSERT INTO " + CASSANDRA_TABLE_VOLUME + " (type, event_time, volume) VALUES ('total', \'" + str(record[0]) + "\', " +str(record[1])+ ")"
+		sql_statement = "INSERT INTO " + CASSANDRA_TABLE_VOLUME + " (type, event_time, volume) VALUES ('total', \'" + str(record[0]) + "\', " + str(record[1]) + ")"
 		cassandra_session.execute(sql_statement)
 	cassandra_cluster.shutdown()
 
@@ -88,9 +88,19 @@ def send_unique_count(iter):
 	cassandra_cluster = Cluster(cassandra_hosts)
 	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
 	for record in iter:
-		sql_statement = "INSERT INTO " + CASSANDRA_TABLE_VISITS + " (type, event_time, count) VALUES ('unique', \'" + str(record[0]) + "\', " +str(record[1])+ ")"
+		sql_statement = "INSERT INTO " + CASSANDRA_TABLE_VISITS + " (type, event_time, count) VALUES ('unique', \'" + str(record[0]) + "\', " + str(record[1]) + ")"
 		cassandra_session.execute(sql_statement)
 	cassandra_cluster.shutdown()	
+
+def send_volume_crawler(iter):
+	cassandra_cluster = Cluster(cassandra_hosts)
+	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
+	for record in iter:
+		_type = 'crawler' if record[0][20] == '1' else 'no crawler'
+		sql_statement = "INSERT INTO " + CASSANDRA_TABLE_VOLUME + " (type, event_time, volume) VALUES (\'" + _type + "\', \'" + str(record[0][:19]) + "\', " + str(record[1]) + ")"
+		cassandra_session.execute(sql_statement)
+	cassandra_cluster.shutdown()	
+
 
 # registering the spark context
 conf = SparkConf().setAppName("03-streaming_calculations")
@@ -114,6 +124,8 @@ kafkaStream = KafkaUtils.createDirectStream(ssc, [kafka_topic], {"metadata.broke
 # aggregations
 visits = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], 1)).reduceByKey(lambda a, b : a + b).updateStateByKey(update_sum, initialRDD=initialStateRDD)
 volume = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], x['size'])).reduceByKey(lambda a, b : a + b).updateStateByKey(update_sum, initialRDD=initialStateRDD)
+volume_crawler = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], [(x['crawler'], x['size'])])).reduceByKey(lambda a, b : a + b).updateStateByKey(update_list, initialRDD=initialStateRDD)
+volume_crawler_sum = volume_crawler.flatMap(lambda x : [x[0] + ' ' + str(xx[0]) + ' ' + str(xx[1]) for xx in x[1]]).map(lambda x : (x[0:21], int(x.split(' ')[3]))).reduceByKey(lambda a, b : a + b)
 visits_ip = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], [x['ip']])).reduceByKey(lambda a, b : a + b).updateStateByKey(update_list, initialRDD=initialStateRDD)
 visits_ip_count = visits_ip.flatMap(lambda x : [x[0] + ' ' + xx for xx in x[1]]).map(lambda x : (x, 1)).reduceByKey(lambda a, b : a + b)
 visits_unique = visits_ip_count.map(lambda x : (x[0][0:19], 1)).reduceByKey(lambda a, b : a + b)
@@ -122,6 +134,7 @@ visits_unique = visits_ip_count.map(lambda x : (x[0][0:19], 1)).reduceByKey(lamb
 visits.foreachRDD(lambda rdd: rdd.foreachPartition(send_count))
 volume.foreachRDD(lambda rdd: rdd.foreachPartition(send_volume))
 visits_unique.foreachRDD(lambda rdd: rdd.foreachPartition(send_unique_count))
+volume_crawler_sum.foreachRDD(lambda rdd: rdd.foreachPartition(send_volume_crawler))
 
 # start
 ssc.start()
