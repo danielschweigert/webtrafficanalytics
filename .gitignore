@@ -3,3 +3,4 @@ webtrafficanalytics.sublime-workspace
 *.pyc
 *.config
 *.config~
+*.csv

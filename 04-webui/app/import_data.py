@@ -1,30 +1,27 @@
-from wtautils import get_cassandra_session
 import datetime
 import time
+from cassandra.cluster import Cluster
 
-cassandra_session = get_cassandra_session()
 
+# open Cassandra connection
+CASSANDRA_RESOURCE_LOCATION = 'resources/cassandra.config'
+CASSANDRA_KEYSPACE = 'webtrafficanalytics'
 
+with open(CASSANDRA_RESOURCE_LOCATION) as f:
+	line1 = f.readline()
+	cassandra_hosts = line1.strip().split('=')[1].split(',')
+
+cassandra_cluster = Cluster(cassandra_hosts)
+cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
+
+# continuous querrying of updates
 while True:
 
-
-	sql_statement = "select event_time, count from visits where type='total' and event_time >= '2010-01-01' and event_time < '2010-01-02'"
+	sql_statement = "select event_time, total, unique from visits_type where type = 'all' order by event_time desc limit 7200"
 	rows = cassandra_session.execute(sql_statement)
-	with open('static/total_visits.csv', 'w') as f:
-		f.write('time,count,\n')
+	with open('04-webui/app/static/visits.csv', 'w') as f:
+		f.write('time,total,unique,\n')
 		for row in rows:
-			f.write(row[0].strftime('%Y-%m-%d %H:%M') + ':00,' + str(row[1]) + ',' + '\n')
-	print 'updated count'
+			f.write(row[0].strftime('%Y-%m-%d %H:%M:%S') + ', ' + str(row[1]) + ',' + str(row[2]) + ',\n')
 
-
-
-	sql_statement = "select event_time, volume from volume_2 where type='total' order by event_time limit 1440";
-	rows = cassandra_session.execute(sql_statement)
-	with open('static/total_volume.csv', 'w') as f:
-		f.write('time,volume(b),\n')
-		for row in rows:
-			f.write(row[0].strftime('%Y-%m-%d %H:%M') + ':00,' + str(row[1]) + ',' + '\n')
-	print 'updated volume'
-
-
-	time.sleep(30)
+	time.sleep(1)
