@@ -21,6 +21,7 @@ KAFKA_RESOURCE_LOCATION = 'resources/kafka.config'
 CASSANDRA_KEYSPACE = 'webtrafficanalytics'
 CASSANDRA_TABLE_VISITS = 'visits'
 CASSANDRA_TABLE_VOLUME = 'volume'
+CASSANDRA_TABLE_VISITS_TYPE = 'visits_type'
 
 # obtain kafka brokers from config
 with open(KAFKA_RESOURCE_LOCATION) as f:
@@ -72,8 +73,8 @@ def send_count(iter):
 	cassandra_cluster = Cluster(cassandra_hosts)
 	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
 	for record in iter:
-		sql_statement = "INSERT INTO " + CASSANDRA_TABLE_VISITS + " (type, event_time, count) VALUES ('total', \'" + str(record[0]) + "\', " + str(record[1]) + ")"
-		cassandra_session.execute(sql_statement)
+		sql_statement = "UPDATE " + CASSANDRA_TABLE_VISITS_TYPE + " SET total = " + str(record[1]) + " WHERE type = 'all' and event_time = \'" + record[0] + "\'" + ";"
+		cassandra_session.execute(sql_statement)	
 	cassandra_cluster.shutdown()
 
 def send_volume(iter):
@@ -88,7 +89,7 @@ def send_unique_count(iter):
 	cassandra_cluster = Cluster(cassandra_hosts)
 	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
 	for record in iter:
-		sql_statement = "INSERT INTO " + CASSANDRA_TABLE_VISITS + " (type, event_time, count) VALUES ('unique', \'" + str(record[0]) + "\', " + str(record[1]) + ")"
+		sql_statement = "UPDATE " + CASSANDRA_TABLE_VISITS_TYPE + " SET unique = " + str(record[1]) + " WHERE type = 'all' and event_time = \'" + record[0] + "\'" + ";"
 		cassandra_session.execute(sql_statement)
 	cassandra_cluster.shutdown()	
 
