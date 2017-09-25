@@ -22,6 +22,8 @@ CASSANDRA_KEYSPACE = 'webtrafficanalytics'
 CASSANDRA_TABLE_VISITS = 'visits'
 CASSANDRA_TABLE_VOLUME = 'volume'
 CASSANDRA_TABLE_VISITS_TYPE = 'visits_type'
+CASSANDRA_TABLE_VOLUME_TYPE = 'volume_type'
+
 
 # obtain kafka brokers from config
 with open(KAFKA_RESOURCE_LOCATION) as f:
@@ -97,9 +99,9 @@ def send_volume_crawler(iter):
 	cassandra_cluster = Cluster(cassandra_hosts)
 	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
 	for record in iter:
-		_type = 'crawler' if record[0][20] == '1' else 'no crawler'
-		sql_statement = "INSERT INTO " + CASSANDRA_TABLE_VOLUME + " (type, event_time, volume) VALUES (\'" + _type + "\', \'" + str(record[0][:19]) + "\', " + str(record[1]) + ")"
-		cassandra_session.execute(sql_statement)
+		field = 'crawler' if record[0][20] == '1' else 'human'
+		sql_statement = "UPDATE " + CASSANDRA_TABLE_VOLUME_TYPE + " SET " + field + " = " + str(record[1]) + " WHERE type = 'all' and event_time = \'" + record[0][0:19] + "\'" + ";"
+		cassandra_session.execute(sql_statement)	
 	cassandra_cluster.shutdown()	
 
 
