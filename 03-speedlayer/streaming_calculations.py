@@ -118,8 +118,6 @@ visits_ip = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x
 visits_ip_count = visits_ip.flatMap(lambda x : [x[0] + ' ' + xx for xx in x[1]]).map(lambda x : (x, 1)).reduceByKey(lambda a, b : a + b)
 visits_unique = visits_ip_count.map(lambda x : (x[0][0:19], 1)).reduceByKey(lambda a, b : a + b)
 
-visits_unique.pprint()
-
 # insert to Cassandra database
 visits.foreachRDD(lambda rdd: rdd.foreachPartition(send_count))
 volume.foreachRDD(lambda rdd: rdd.foreachPartition(send_volume))
