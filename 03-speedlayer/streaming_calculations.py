@@ -58,12 +58,17 @@ def avro_decoder(msg):
 	reader = avro.io.DatumReader(schema)
 	return reader.read(decoder)
 
-def updateFunc(new_values, last_sum):
+def update_sum(new_values, last_sum):
 	if new_values == []:
 		return None
 	return sum(new_values) + (last_sum or 0)
 
-def sendPartitionCount(iter):
+def update_list(new_values, last_list):
+	if new_values == []:
+		return None
+	return new_values[0] + (last_list or [])
+
+def send_count(iter):
 	cassandra_cluster = Cluster(cassandra_hosts)
 	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
 	for record in iter:
@@ -71,13 +76,21 @@ def sendPartitionCount(iter):
 		cassandra_session.execute(sql_statement)
 	cassandra_cluster.shutdown()
 
-def sendPartitionVolume(iter):
+def send_volume(iter):
 	cassandra_cluster = Cluster(cassandra_hosts)
 	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
 	for record in iter:
 		sql_statement = "INSERT INTO " + CASSANDRA_TABLE_VOLUME + " (type, event_time, volume) VALUES ('total', \'" + str(record[0]) + "\', " +str(record[1])+ ")"
 		cassandra_session.execute(sql_statement)
 	cassandra_cluster.shutdown()
+
+def send_unique_count(iter):
+	cassandra_cluster = Cluster(cassandra_hosts)
+	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
+	for record in iter:
+		sql_statement = "INSERT INTO " + CASSANDRA_TABLE_VISITS + " (type, event_time, count) VALUES ('unique', \'" + str(record[0]) + "\', " +str(record[1])+ ")"
+		cassandra_session.execute(sql_statement)
+	cassandra_cluster.shutdown()	
 
 # registering the spark context
 conf = SparkConf().setAppName("03-streaming_calculations")
@@ -99,12 +112,19 @@ initialStateRDD = sc.parallelize([])
 kafkaStream = KafkaUtils.createDirectStream(ssc, [kafka_topic], {"metadata.broker.list": kafka_brokers}, valueDecoder=avro_decoder)
 
 # aggregations
-visits = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], 1)).reduceByKey(lambda a, b : a + b).updateStateByKey(updateFunc, initialRDD=initialStateRDD)
-volume = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], x['size'])).reduceByKey(lambda a, b : a + b).updateStateByKey(updateFunc, initialRDD=initialStateRDD)
+visits = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], 1)).reduceByKey(lambda a, b : a + b).updateStateByKey(update_sum, initialRDD=initialStateRDD)
+volume = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], x['size'])).reduceByKey(lambda a, b : a + b).updateStateByKey(update_sum, initialRDD=initialStateRDD)
+visits_ip = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], [x['ip']])).reduceByKey(lambda a, b : a + b).updateStateByKey(update_list, initialRDD=initialStateRDD)
+visits_ip_count = visits_ip.flatMap(lambda x : [x[0] + ' ' + xx for xx in x[1]]).map(lambda x : (x, 1)).reduceByKey(lambda a, b : a + b)
+visits_unique = visits_ip_count.map(lambda x : (x[0][0:19], 1)).reduceByKey(lambda a, b : a + b)
+
+visits_unique.pprint()
 
 # insert to Cassandra database
-visits.foreachRDD(lambda rdd: rdd.foreachPartition(sendPartitionCount))
-volume.foreachRDD(lambda rdd: rdd.foreachPartition(sendPartitionVolume))
+visits.foreachRDD(lambda rdd: rdd.foreachPartition(send_count))
+volume.foreachRDD(lambda rdd: rdd.foreachPartition(send_volume))
+visits_unique.foreachRDD(lambda rdd: rdd.foreachPartition(send_unique_count))
 
+# start
 ssc.start()
 ssc.awaitTermination()
