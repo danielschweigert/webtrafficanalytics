@@ -1,9 +1,12 @@
 import os
+import datetime
 from pyspark import SparkContext
 from pyspark import SparkConf
 from pyspark.streaming import StreamingContext
 from pyspark.streaming.kafka import KafkaUtils
 from cassandra.cluster import Cluster
+from cassandra.query import BatchStatement
+from cassandra import ConsistencyLevel
 
 import avro.schema
 import avro.io
@@ -23,7 +26,7 @@ CASSANDRA_TABLE_VISITS = 'visits'
 CASSANDRA_TABLE_VOLUME = 'volume'
 CASSANDRA_TABLE_VISITS_TYPE = 'visits_type'
 CASSANDRA_TABLE_VOLUME_TYPE = 'volume_type'
-
+CASSANDRA_TABLE_VOLUME_COUNT = 'volume_count'
 
 # obtain kafka brokers from config
 with open(KAFKA_RESOURCE_LOCATION) as f:
@@ -74,36 +77,32 @@ def update_list(new_values, last_list):
 def send_count(iter):
 	cassandra_cluster = Cluster(cassandra_hosts)
 	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
+	insert_count = cassandra_session.prepare("UPDATE " + CASSANDRA_TABLE_VISITS_TYPE + " SET total = ? WHERE type = 'all' and event_time = ?")
+	batch = BatchStatement(consistency_level=ConsistencyLevel.ANY)
 	for record in iter:
-		sql_statement = "UPDATE " + CASSANDRA_TABLE_VISITS_TYPE + " SET total = " + str(record[1]) + " WHERE type = 'all' and event_time = \'" + record[0] + "\'" + ";"
-		cassandra_session.execute(sql_statement)	
-	cassandra_cluster.shutdown()
-
-def send_volume(iter):
-	cassandra_cluster = Cluster(cassandra_hosts)
-	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
-	for record in iter:
-		sql_statement = "INSERT INTO " + CASSANDRA_TABLE_VOLUME + " (type, event_time, volume) VALUES ('total', \'" + str(record[0]) + "\', " + str(record[1]) + ")"
-		cassandra_session.execute(sql_statement)
+		batch.add(insert_count, (record[1], datetime.datetime.strptime(record[0], '%Y-%m-%d %H:%M:%S')))
+	cassandra_session.execute(batch)
 	cassandra_cluster.shutdown()
 
 def send_unique_count(iter):
 	cassandra_cluster = Cluster(cassandra_hosts)
 	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
+	insert_count = cassandra_session.prepare("UPDATE " + CASSANDRA_TABLE_VISITS_TYPE + " SET unique = ? WHERE type = 'all' and event_time = ?")
+	batch = BatchStatement(consistency_level=ConsistencyLevel.ANY)
 	for record in iter:
-		sql_statement = "UPDATE " + CASSANDRA_TABLE_VISITS_TYPE + " SET unique = " + str(record[1]) + " WHERE type = 'all' and event_time = \'" + record[0] + "\'" + ";"
-		cassandra_session.execute(sql_statement)
+		batch.add(insert_count, (record[1], datetime.datetime.strptime(record[0], '%Y-%m-%d %H:%M:%S')))
+	cassandra_session.execute(batch)
 	cassandra_cluster.shutdown()	
 
-def send_volume_crawler(iter):
+def send_volume(iter):
 	cassandra_cluster = Cluster(cassandra_hosts)
-	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
+	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)	
 	for record in iter:
 		field = 'crawler' if record[0][20] == '1' else 'human'
-		sql_statement = "UPDATE " + CASSANDRA_TABLE_VOLUME_TYPE + " SET " + field + " = " + str(record[1]) + " WHERE type = 'all' and event_time = \'" + record[0][0:19] + "\'" + ";"
-		cassandra_session.execute(sql_statement)	
-	cassandra_cluster.shutdown()	
-
+		sql_statement = "UPDATE " + CASSANDRA_TABLE_VOLUME_TYPE + " SET " + field + " = " + str(record[1]) + " WHERE type = 'all' and event_time = \'" + record[0][0:19] + "\'"
+		#print sql_statement
+		cassandra_session.execute(sql_statement)
+	cassandra_cluster.shutdown()
 
 # registering the spark context
 conf = SparkConf().setAppName("03-streaming_calculations")
@@ -115,7 +114,7 @@ logger.LogManager.getLogger("org").setLevel( logger.Level.ERROR )
 logger.LogManager.getLogger("akka").setLevel( logger.Level.ERROR )
 
 # streaming context and checkpoint
-ssc = StreamingContext(sc, 1)
+ssc = StreamingContext(sc, 5)
 ssc.checkpoint("hdfs://ec2-13-57-66-131.us-west-1.compute.amazonaws.com:9000/checkpoint/")
 
 # initial state RDD
@@ -124,20 +123,19 @@ initialStateRDD = sc.parallelize([])
 # obtaining stream from Kafka
 kafkaStream = KafkaUtils.createDirectStream(ssc, [kafka_topic], {"metadata.broker.list": kafka_brokers}, valueDecoder=avro_decoder)
 
+kafkaStream.cache()
+
 # aggregations
 visits = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], 1)).reduceByKey(lambda a, b : a + b).updateStateByKey(update_sum, initialRDD=initialStateRDD)
-volume = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], x['size'])).reduceByKey(lambda a, b : a + b).updateStateByKey(update_sum, initialRDD=initialStateRDD)
+visits_ip = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], [x['ip']])).reduceByKey(lambda a, b : a + b).updateStateByKey(update_list, initialRDD=initialStateRDD)
+visits_unique = visits_ip.flatMap(lambda x : [x[0] + ' ' + xx for xx in x[1]]).map(lambda x : (x, 1)).reduceByKey(lambda a, b : None).map(lambda x : (x[0][0:19], 1)).reduceByKey(lambda a, b : a + b)
 volume_crawler = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], [(x['crawler'], x['size'])])).reduceByKey(lambda a, b : a + b).updateStateByKey(update_list, initialRDD=initialStateRDD)
 volume_crawler_sum = volume_crawler.flatMap(lambda x : [x[0] + ' ' + str(xx[0]) + ' ' + str(xx[1]) for xx in x[1]]).map(lambda x : (x[0:21], int(x.split(' ')[3]))).reduceByKey(lambda a, b : a + b)
-visits_ip = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], [x['ip']])).reduceByKey(lambda a, b : a + b).updateStateByKey(update_list, initialRDD=initialStateRDD)
-visits_ip_count = visits_ip.flatMap(lambda x : [x[0] + ' ' + xx for xx in x[1]]).map(lambda x : (x, 1)).reduceByKey(lambda a, b : a + b)
-visits_unique = visits_ip_count.map(lambda x : (x[0][0:19], 1)).reduceByKey(lambda a, b : a + b)
 
 # insert to Cassandra database
 visits.foreachRDD(lambda rdd: rdd.foreachPartition(send_count))
-volume.foreachRDD(lambda rdd: rdd.foreachPartition(send_volume))
 visits_unique.foreachRDD(lambda rdd: rdd.foreachPartition(send_unique_count))
-volume_crawler_sum.foreachRDD(lambda rdd: rdd.foreachPartition(send_volume_crawler))
+volume_crawler_sum.foreachRDD(lambda rdd: rdd.foreachPartition(send_volume))
 
 # start
 ssc.start()
