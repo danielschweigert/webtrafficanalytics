@@ -102,7 +102,7 @@ def send_volume(iter):
 		cassandra_session.execute(sql_statement)
 	cassandra_cluster.shutdown()
 
-def send_visit_rank(iter):
+def send_click_rank(iter):
 	cassandra_cluster = Cluster(cassandra_hosts)
 	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
 	insert_visit_rank = cassandra_session.prepare("INSERT INTO " + CASSANDRA_TABLE_VISIT_RANK + " (type, event_time, rank, ip, visits) VALUES ('clicks', ?, ?, ?, ?)")
@@ -110,7 +110,17 @@ def send_visit_rank(iter):
 	for record in iter:
 		batch.add(insert_visit_rank, (datetime.datetime.strptime(record[0][0][0:16], '%Y-%m-%d %H:%M'), record[1], record[0][0].split(' ')[-1], record[0][1]))
 	cassandra_session.execute(batch)
-	cassandra_cluster.shutdown()	
+	cassandra_cluster.shutdown()
+
+def send_volume_rank(iter):
+	cassandra_cluster = Cluster(cassandra_hosts)
+	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
+	insert_visit_rank = cassandra_session.prepare("INSERT INTO " + CASSANDRA_TABLE_VISIT_RANK + " (type, event_time, rank, ip, visits) VALUES ('volume', ?, ?, ?, ?)")
+	batch = BatchStatement(consistency_level=ConsistencyLevel.ANY)
+	for record in iter:
+		batch.add(insert_visit_rank, (datetime.datetime.strptime(record[0][0][0:16], '%Y-%m-%d %H:%M'), record[1], record[0][0].split(' ')[-1], record[0][1]))
+	cassandra_session.execute(batch)
+	cassandra_cluster.shutdown()
 
 # registering the spark context
 conf = SparkConf().setAppName("03-streaming_calculations")
@@ -141,16 +151,25 @@ volume_crawler_sum = volume_crawler.flatMap(lambda x : [x[0] + ' ' + str(xx[0]) 
 
 # aggregations (by min)
 visits_ip_min = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'][0:5], [(x['ip'], x['size'])])).reduceByKey(lambda a, b : a + b).updateStateByKey(update_list, initialRDD=initialStateRDD)
-visits_top_by_count = visits_ip_min.flatMap(lambda x : [x[0] + ' ' + str(xx[0]) + ' , ' + str(xx[1]) for xx in x[1]])
-visit_rank = visits_top_by_count.map(lambda x : (x.split(' , ')[0], 1)).reduceByKey(lambda a, b : a + b).transform(lambda x : x.sortBy(lambda y : (y[0][0:16], y[1]), ascending=False))
-visit_rank_top_10 = visit_rank.transform(lambda x : x.zipWithIndex().filter(lambda x : x[1] < 10))
+visits_ip_min_flat = visits_ip_min.flatMap(lambda x : [x[0] + ' ' + str(xx[0]) + ' , ' + str(xx[1]) for xx in x[1]])
+visits_ip_min_flat.cache()
+
+# top 10 visitors by clicks
+click_rank = visits_ip_min_flat.map(lambda x : (x.split(' , ')[0], 1)).reduceByKey(lambda a, b : a + b).transform(lambda x : x.sortBy(lambda y : (y[0][0:16], y[1]), ascending=False))
+click_rank_top_10 = click_rank.transform(lambda x : x.zipWithIndex().filter(lambda x : x[1] < 10))
+
+# top 10 visitors by volume
+#visits_top_by_volume = visits_ip_min.flatMap(lambda x : [x[0] + ' ' + str(xx[0]) + ' , ' + str(xx[1]) for xx in x[1]])
+volume_rank = visits_ip_min_flat.map(lambda x : (x.split(' , ')[0], int(x.split(' , ')[1]))).reduceByKey(lambda a, b : a + b).transform(lambda x : x.sortBy(lambda y : (y[0][0:16], y[1]), ascending=False))
+volume_rank_top_10 = volume_rank.transform(lambda x : x.zipWithIndex().filter(lambda x : x[1] < 10))
+volume_rank_top_10.pprint()
 
 # insert to Cassandra database
 visits.foreachRDD(lambda rdd: rdd.foreachPartition(send_count))
 visits_unique.foreachRDD(lambda rdd: rdd.foreachPartition(send_unique_count))
 volume_crawler_sum.foreachRDD(lambda rdd: rdd.foreachPartition(send_volume))
-visit_rank_top_10.foreachRDD(lambda rdd: rdd.foreachPartition(send_visit_rank))
-
+click_rank_top_10.foreachRDD(lambda rdd: rdd.foreachPartition(send_click_rank))
+volume_rank_top_10.foreachRDD(lambda rdd: rdd.foreachPartition(send_volume_rank))
 
 # start
 ssc.start()
