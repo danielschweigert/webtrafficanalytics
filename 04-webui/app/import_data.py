@@ -37,8 +37,16 @@ while True:
 	previous_minute = (datetime.datetime.now() - datetime.timedelta(hours=7, minutes=1)).strftime('%Y-%m-%d %H:%M')+':00'
 	sql_statement = "select event_time, ip, visits from visit_rank where type = 'clicks' and event_time = \'" + previous_minute + "\'"
 	rows = cassandra_session.execute(sql_statement)
-	with open('04-webui/app/static/visits_top10.csv', 'w') as f:
+	with open('04-webui/app/static/visits_top10_clicks.csv', 'w') as f:
 		f.write('time,ip,visits,\n')
+		for row in rows:
+			f.write(row[0].strftime('%Y-%m-%d %H:%M:%S') + ', ' + str(row[1] or '0') + ',' + str(row[2] or '0') + ',\n')
+
+	previous_minute = (datetime.datetime.now() - datetime.timedelta(hours=7, minutes=1)).strftime('%Y-%m-%d %H:%M')+':00'
+	sql_statement = "select event_time, ip, visits from visit_rank where type = 'volume' and event_time = \'" + previous_minute + "\'"
+	rows = cassandra_session.execute(sql_statement)
+	with open('04-webui/app/static/visits_top10_volume.csv', 'w') as f:
+		f.write('time,ip,volume,\n')
 		for row in rows:
 			f.write(row[0].strftime('%Y-%m-%d %H:%M:%S') + ', ' + str(row[1] or '0') + ',' + str(row[2] or '0') + ',\n')
 

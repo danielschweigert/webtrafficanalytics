@@ -67,8 +67,8 @@ Plotly.newPlot('chart2', data, layout);
 });
 
 
-// Chart with top 10 visitors by click
-Plotly.d3.csv("static/visits_top10.csv", function(err, rows){
+// Chart with top 10 visitors by clicks
+Plotly.d3.csv("static/visits_top10_clicks.csv", function(err, rows){
   function unpack(rows, key) {
   return rows.map(function(row) { return row[key]; });
 }
@@ -82,8 +82,29 @@ var data = [
 ]
 
 var layout = {
-  title: 'Top 10 visitors (past minute)',
+  title: 'Top 10 visitors by clicks (past minute)',
 };
 
 Plotly.newPlot('chart_top_ip_visits', data, layout);
+});
+
+// Chart with top 10 visitors by volume
+Plotly.d3.csv("static/visits_top10_volume.csv", function(err, rows){
+  function unpack(rows, key) {
+  return rows.map(function(row) { return row[key]; });
+}
+
+var data = [
+  {
+    x: unpack(rows, 'ip'),
+    y: unpack(rows, 'volume'),
+    type: 'bar'
+  }
+]
+
+var layout = {
+  title: 'Top 10 visitors by volume (past minute)',
+};
+
+Plotly.newPlot('chart_top_ip_volume', data, layout);
 });
