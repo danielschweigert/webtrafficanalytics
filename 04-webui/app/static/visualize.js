@@ -7,7 +7,7 @@ Plotly.d3.csv("static/visits.csv", function(err, rows){
 
 var trace1 = {
   type: "scatter",
-  mode: "lines",
+  mode: "markers",
   name: 'total',
   x: unpack(rows, 'time'),
   y: unpack(rows, 'total'),
@@ -16,7 +16,7 @@ var trace1 = {
 
 var trace2 = {
   type: "scatter",
-  mode: "lines",
+  mode: "markers",
   name: 'unique',
   x: unpack(rows, 'time'),
   y: unpack(rows, 'unique'),
@@ -30,7 +30,7 @@ var layout = {
 };
 
 Plotly.newPlot('chart1', data, layout);
-});
+})
 
 
 // dashboard: volume requested (human and crawler)
@@ -41,7 +41,7 @@ Plotly.d3.csv("static/volume.csv", function(err, rows){
 
 var trace1 = {
   type: "scatter",
-  mode: "lines",
+  mode: "markers",
   name: 'crawler',
   x: unpack(rows, 'time'),
   y: unpack(rows, 'crawler'),
@@ -50,7 +50,7 @@ var trace1 = {
 
 var trace2 = {
   type: "scatter",
-  mode: "lines",
+  mode: "markers",
   name: 'human',
   x: unpack(rows, 'time'),
   y: unpack(rows, 'human'),
@@ -64,4 +64,26 @@ var layout = {
 };
 
 Plotly.newPlot('chart2', data, layout);
+});
+
+
+// Chart with top 10 visitors by click
+Plotly.d3.csv("static/visits_top10.csv", function(err, rows){
+  function unpack(rows, key) {
+  return rows.map(function(row) { return row[key]; });
+}
+
+var data = [
+  {
+    x: unpack(rows, 'ip'),
+    y: unpack(rows, 'visits'),
+    type: 'bar'
+  }
+]
+
+var layout = {
+  title: 'Top 10 visitors (past minute)',
+};
+
+Plotly.newPlot('chart_top_ip_visits', data, layout);
 });
