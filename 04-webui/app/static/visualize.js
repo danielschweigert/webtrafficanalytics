@@ -29,7 +29,7 @@ var layout = {
   title: 'Website requests over time',
 };
 
-Plotly.newPlot('chart1', data, layout);
+Plotly.newPlot('chart_clicks', data, layout);
 })
 
 
@@ -63,7 +63,7 @@ var layout = {
   title: 'Website requests over time',
 };
 
-Plotly.newPlot('chart2', data, layout);
+Plotly.newPlot('chart_volume', data, layout);
 });
 
 
@@ -107,4 +107,29 @@ var layout = {
 };
 
 Plotly.newPlot('chart_top_ip_volume', data, layout);
+});
+
+
+// dashboard: 4xx count by time
+Plotly.d3.csv("static/code_count.csv", function(err, rows){
+  function unpack(rows, key) {
+  return rows.map(function(row) { return row[key]; });
+}
+
+var trace1 = {
+  type: "scatter",
+  mode: "markers",
+  name: 'HTTP 4xx',
+  x: unpack(rows, 'time'),
+  y: unpack(rows, 'count'),
+  line: {color: '#17BECF'}
+}
+
+var data = [trace1];
+
+var layout = {
+  title: 'HTTP status 4XX over time',
+};
+
+Plotly.newPlot('chart_4xx_time', data, layout);
 });
