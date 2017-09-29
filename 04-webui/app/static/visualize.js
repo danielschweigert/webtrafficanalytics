@@ -125,6 +125,7 @@ var trace1 = {
   line: {color: '#17BECF'}
 }
 
+
 var data = [trace1];
 
 var layout = {

@@ -50,7 +50,7 @@ while True:
 			f.write(row[0].strftime('%Y-%m-%d %H:%M:%S') + ', ' + str(row[1] or '0') + ',' + str(row[2] or '0') + ',\n')
 
 	# update distributions of http status codes
-	sql_statement = "select event_time, count from code_count_3 where type = '4xx' order by event_time desc limit 7200"
+	sql_statement = "select event_time, count from code_count_3 where type = '4xx' order by event_time desc limit 600"
 	rows = cassandra_session.execute(sql_statement)
 	with open('04-webui/app/static/code_count.csv', 'w') as f:
 		f.write('time,count,\n')
@@ -59,4 +59,4 @@ while True:
 
 	# report to console
 	print 'updated at ' + str(datetime.datetime.now())
-	time.sleep(1)
+	time.sleep(3)
