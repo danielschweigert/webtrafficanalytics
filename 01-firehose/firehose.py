@@ -1,3 +1,11 @@
+"""
+Produces a flow of web log raw data to a Kafka topic. The original data set has
+historic timestamps, which are being replaced with current timestamps to simulate
+a real-time process.
+
+Prior to ingestion into Kafka, the data is serialized using the Avro framework.
+"""
+
 import os
 import io
 import datetime
@@ -33,17 +41,17 @@ producer = KafkaProducer(bootstrap_servers=bootstrap_servers[0] + ':' + port, ac
 # Avro schema
 schema = avro.schema.parse(open(SCHEMA_PATH).read())
 
-
-print bootstrap_servers
-print port
-print topic
+# report to console
+print 'data flow started: ' + str(datetime.datetime.now())
+print 'bootstrap_servers: ' + ','.join(bootstrap_servers)
+print 'port: ' + port
+print 'Kafka topic: ' + topic
 i = 0
 while True:
 	print 'cycle starts ' + str(datetime.datetime.now())
 	for file_path in os.listdir(RAW_FILE_PATH):
 		with open(os.path.join(RAW_FILE_PATH, file_path), 'r') as f:
 			header = f.readline().strip().split(',')
-			print header
 			for line in f:
 				try:
 					record = parse_line_to_dict(line, header)
