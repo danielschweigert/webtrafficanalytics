@@ -1,4 +1,6 @@
+import time
 import datetime
+from datetime import timedelta
 
 INT_TYPES = ['size', 'idx', 'norefer', 'noagent', 'find', 'crawler']
 
@@ -20,6 +22,7 @@ def parse_line_to_dict(line, header, use_current_time_stamp=False):
 		record[header[i]] = value
 	if use_current_time_stamp:
 		now = datetime.datetime.now()
+		now = now + timedelta(hours=-7)
 		record['date'] = now.strftime('%Y-%m-%d')
 		record['time'] = now.strftime('%H:%M:%S')
 	return record
