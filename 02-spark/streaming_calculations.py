@@ -14,7 +14,7 @@ import io
 from avro.io import BinaryDecoder
 
 # to run
-# $SPARK_HOME/bin/spark-submit --master spark://ip-10-0-0-7:7077 --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 03-speedlayer/streaming_calculations.py
+# $SPARK_HOME/bin/spark-submit --master spark://ip-10-0-0-7:7077 --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 02-spark/streaming_calculations.py
 
 os.environ['PYSPARK_SUBMIT_ARGS'] = '--packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 pyspark-shell'
 
@@ -118,7 +118,6 @@ ssc.checkpoint("hdfs://ec2-13-57-66-131.us-west-1.compute.amazonaws.com:9000/che
 initialStateRDD = sc.parallelize([])
 
 # obtaining stream from Kafka
-kafka_topic = 'testlogs3'
 kafkaStream = KafkaUtils.createDirectStream(ssc, [kafka_topic], {"metadata.broker.list": kafka_brokers}, valueDecoder=avro_decoder)
 kafkaStream.cache()
 
@@ -168,7 +167,8 @@ volume_rank_top_10 = volume_rank.transform(lambda x : x.zipWithIndex()\
 					   .filter(lambda x : x[1] < 10))
 
 # client side error code count
-codes_4xx = kafkaStream.filter(lambda x : x[1]['code'][0] == '4')\
+codes_4xx = kafkaStream.filter(lambda x : len(x[1]['code'])>0)\
+					   .filter(lambda x : x[1]['code'][0] == '4')\
 					   .map(lambda x : (x[1]['date'] + ' ' + x[1]['time'], 1))\
 					   .reduceByKey(lambda a, b: a + b)\
 					   .updateStateByKey(update_sum, initialRDD=initialStateRDD)
