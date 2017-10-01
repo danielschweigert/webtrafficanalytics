@@ -1,36 +1,36 @@
 <html>
-<head>
-	<title>
-		Web Traffic Dashboard
-	</title>
 
-	<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-	<script type="text/javascript">
-      var $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
-    </script>
-	<script src="{{ url_for('static', filename='jquery-3.2.1.min.js') }}"></script>
-	<script type="text/javascript" src="{{ url_for('static', filename='visualize.js') }}"></script>
+	<head>
 
-</head>
+		<title>
+			Web Traffic Dashboard
+		</title>
 
-<body onload="start_graphs()">
+		<script type="text/javascript">
+	      var $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
+	    </script>
+	    <script src="{{ url_for('static', filename='plotly-latest.min.js') }}"></script>
+		<script src="{{ url_for('static', filename='jquery-3.2.1.min.js') }}"></script>
+		<script type="text/javascript" src="{{ url_for('static', filename='visualize.js') }}"></script>
 
-	<table>
+	</head>
+
+	<body onload="start_graphs()">
+
+		<table>
+			<tr>
+				<td><div id="chart_clicks"></div></td>
+				<td><div id="chart_volume"></div></td>
+			</tr>
+		</table>
+		<div id="chart_4xx_time"></div>
+		<table>
 		<tr>
-			<td><div id="chart_clicks"></div></td>
-			<td><div id="chart_volume"></div></td>
+			<td><div id="chart_top_ip_visits"></div></td>
+			<td><div id="chart_top_ip_volume"></div></td>
 		</tr>
-	</table>
-	<div id="chart_4xx_time"></div>
-	<table>
-	<tr>
-		<td><div id="chart_top_ip_visits"></div></td>
-		<td><div id="chart_top_ip_volume"></div></td>
-	</tr>
-	</table>
+		</table>
 
-</body>
-
-
+	</body>
 
 </html>
