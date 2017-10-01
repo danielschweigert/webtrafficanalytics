@@ -1,3 +1,11 @@
+"""
+Stream processing of web log data.
+
+Data is consumed from a Kafka topic as batches in intervals of 5s. Various aggregations
+and calculations are performed and the results are sent to the Cassandra cluster.
+
+"""
+
 import os
 import datetime
 from pyspark import SparkContext
@@ -53,8 +61,8 @@ schema = avro.schema.parse(open(schema_path).read())
 # avro decoder function
 def avro_decoder(msg):
 	"""
-	This function is used to decode the avro messages in the 
-	kafka queue when the dstream object is obtained.
+	This function is used to decode the avro messages in the kafka queue when 
+	the dstream object is obtained.
 	"""
 	bytes_reader = io.BytesIO(msg)
 	decoder = BinaryDecoder(bytes_reader)
@@ -62,11 +70,21 @@ def avro_decoder(msg):
 	return reader.read(decoder)
 
 def update_sum(new_values, last_sum):
+	"""
+	Update function for stateful streaming operations. New values are added to
+	the state represented by a int. If no new values exist for the key, the 
+	state is discarded.
+	"""
 	if new_values == []:
 		return None
 	return sum(new_values) + (last_sum or 0)
 
 def update_list(new_values, last_list):
+	"""
+	Update function for stateful streaming operations. New values are added to
+	the state represented by a list. If no new values exist for the key, the 
+	state is discarded.
+	"""
 	if new_values == []:
 		return None
 	return new_values[0] + (last_list or [])
