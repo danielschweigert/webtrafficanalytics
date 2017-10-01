@@ -1,3 +1,4 @@
+import datetime
 from flask import render_template
 from flask import redirect
 from flask import jsonify
@@ -36,4 +37,15 @@ def get_metric(metrics, last_seconds):
 		for val in response:
 			response_list.append(val)
 		jsonresponse += [{"event_time": x.event_time.strftime('%Y-%m-%d %H:%M:%S'), "value": x.value, "type": metric} for x in response_list]
+	return jsonify(jsonresponse)
+
+@app.route('/api/top10/<metric>')
+def get_top10(metric):
+	previous_minute = (datetime.datetime.now() - datetime.timedelta(hours=7, minutes=1)).strftime('%Y-%m-%d %H:%M')+':00'
+	stmt = "SELECT event_time, ip, visits from visit_rank WHERE type = %s and event_time = \'" + previous_minute + "\'"
+	response = session.execute(stmt, parameters=[metric])
+	response_list = []
+	for val in response:
+		response_list.append(val)
+	jsonresponse = [{"event_time": x.event_time.strftime('%Y-%m-%d %H:%M:%S'), "ip": x.ip, "value": x.visits} for x in response_list]
 	return jsonify(jsonresponse)

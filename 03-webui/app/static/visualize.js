@@ -115,6 +115,57 @@ function plot_4xx_time(data){
   Plotly.newPlot('chart_4xx_time', data, layout);
 }
 
+function plot_top10_clicks(data){
+
+  var ip = [];
+  var count = [];
+
+   for (var i=0; i<data.length; i++) {
+        ip.push(data[i]['ip']);
+        count.push(data[i]['value']);
+   }
+
+  var data = [
+    {
+      x: ip,
+      y: count,
+      type: 'bar'
+    }
+  ]
+
+  var layout = {
+    title: 'Top 10 visitors by clicks (past minute)',
+    yaxis: {title: '# visits'},
+  };
+
+  Plotly.newPlot('chart_top_ip_visits', data, layout);
+}
+
+function plot_top10_volume(data){
+
+  var ip = [];
+  var count = [];
+
+   for (var i=0; i<data.length; i++) {
+        ip.push(data[i]['ip']);
+        count.push(data[i]['value']);
+   }
+
+  var data = [
+    {
+      x: ip,
+      y: count,
+      type: 'bar'
+    }
+  ]
+
+  var layout = {
+    title: 'Top 10 visitors by volume (past minute)',
+    yaxis: {title: 'volume (MB)'},
+  };
+
+  Plotly.newPlot('chart_top_ip_volume', data, layout);
+}
 
 
 function start_graphs(){
@@ -138,6 +189,16 @@ function load_dashboards(){
   // HTTP4xx plot
   $.getJSON($SCRIPT_ROOT + 'api/metric/4xx/600', function(data) {
     plot_4xx_time(data)
+  });
+
+  // HTTP4xx plot
+  $.getJSON($SCRIPT_ROOT + 'api/top10/clicks', function(data) {
+    plot_top10_clicks(data)
+  });
+
+  // HTTP4xx plot
+  $.getJSON($SCRIPT_ROOT + 'api/top10/volume', function(data) {
+    plot_top10_volume(data)
   });
 
 }
@@ -218,6 +279,47 @@ function interval_updates(){
     });
   }, 5000);
 
+  // top 10 clicks update
+  var interval_top10_clicks= setInterval(function() {
+
+    $.getJSON($SCRIPT_ROOT + 'api/top10/clicks', function(data) {
+      var ip = [];
+      var count = [];
+
+      for (var i=0; i<data.length; i++) {
+          ip.push(data[i]['ip']);
+          count.push(data[i]['value']);
+      }
+
+      var data_update = {
+        x: [ip],
+        y: [count]
+      }
+
+      Plotly.update('chart_top_ip_visits', data_update);
+    });
+  }, 60000); 
+
+  // top 10 volume update
+  var interval_top10_clicks= setInterval(function() {
+
+    $.getJSON($SCRIPT_ROOT + 'api/top10/volume', function(data) {
+      var ip = [];
+      var count = [];
+
+      for (var i=0; i<data.length; i++) {
+          ip.push(data[i]['ip']);
+          count.push(data[i]['value']);
+      }
+
+      var data_update = {
+        x: [ip],
+        y: [count]
+      }
+
+      Plotly.update('chart_top_ip_volume', data_update);
+    });
+  }, 60000);  
 
 }
 
