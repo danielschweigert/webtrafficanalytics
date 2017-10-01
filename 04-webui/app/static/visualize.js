@@ -7,8 +7,11 @@ function plot_visits_time(data){
 
    for (var i=0; i<data.length; i++) {
         event_times.push(data[i]['event_time']);
-        total.push(data[i]['total']);
-        unique.push(data[i]['unique']);
+        if (data[i]['type'] == 'total_visits') {
+          total.push(data[i]['value']);
+        } else if (data[i]['type'] == 'unique_visits') {
+          unique.push(data[i]['value']);
+        }
    }
 
   var trace1 = {
@@ -48,8 +51,11 @@ function plot_volume_time(data){
 
    for (var i=0; i<data.length; i++) {
         event_times.push(data[i]['event_time']);
-        human.push(data[i]['human']);
-        crawler.push(data[i]['crawler']);
+        if (data[i]['type'] == 'volume_human') {
+          human.push(data[i]['value']);
+        } else if (data[i]['type'] == 'volume_crawler') {
+          crawler.push(data[i]['value']);
+        }
    }
 
   var trace1 = {
@@ -88,7 +94,7 @@ function plot_4xx_time(data){
 
    for (var i=0; i<data.length; i++) {
         event_times.push(data[i]['event_time']);
-        count.push(data[i]['count']);
+        count.push(data[i]['value']);
    }
 
   var trace1 = {
@@ -120,17 +126,17 @@ function start_graphs(){
 function load_dashboards(){
 
   // visits plot
-  $.getJSON($SCRIPT_ROOT + 'api/visits/600', function(data) {
+  $.getJSON($SCRIPT_ROOT + 'api/metric/total_visits,unique_visits/600', function(data) {
     plot_visits_time(data)
   });
 
   // volume plot
-  $.getJSON($SCRIPT_ROOT + 'api/volume/600', function(data) {
+  $.getJSON($SCRIPT_ROOT + 'api/metric/volume_human,volume_crawler/600', function(data) {
     plot_volume_time(data)
   });
 
   // HTTP4xx plot
-  $.getJSON($SCRIPT_ROOT + 'api/code/4xx/600', function(data) {
+  $.getJSON($SCRIPT_ROOT + 'api/metric/4xx/600', function(data) {
     plot_4xx_time(data)
   });
 
@@ -142,16 +148,19 @@ function interval_updates(){
   // visits update
   var interval_vists = setInterval(function() {
 
-    $.getJSON($SCRIPT_ROOT + 'api/visits/600', function(data) {
+    $.getJSON($SCRIPT_ROOT + 'api/metric/total_visits,unique_visits/600', function(data) {
       var event_times = [];
       var total = [];
       var unique = [];
 
-      for (var i=0; i<data.length; i++) {
+     for (var i=0; i<data.length; i++) {
           event_times.push(data[i]['event_time']);
-          total.push(data[i]['total']);
-          unique.push(data[i]['unique']);
-      }
+          if (data[i]['type'] == 'total_visits') {
+            total.push(data[i]['value']);
+          } else if (data[i]['type'] == 'unique_visits') {
+            unique.push(data[i]['value']);
+          }
+     }
 
       var data_update = {
         x: [event_times, event_times],
@@ -161,20 +170,23 @@ function interval_updates(){
       Plotly.update('chart_clicks', data_update);
     });
   }, 5000);
-
+  
   // volume updates
   var interval_volume = setInterval(function() {
 
-    $.getJSON($SCRIPT_ROOT + 'api/volume/600', function(data) {
+    $.getJSON($SCRIPT_ROOT + 'api/metric/volume_human,volume_crawler/600', function(data) {
       var event_times = [];
       var human = [];
       var crawler = [];
 
-      for (var i=0; i<data.length; i++) {
+     for (var i=0; i<data.length; i++) {
           event_times.push(data[i]['event_time']);
-          human.push(data[i]['human']);
-          crawler.push(data[i]['crawler']);
-      }
+          if (data[i]['type'] == 'volume_human') {
+            human.push(data[i]['value']);
+          } else if (data[i]['type'] == 'volume_crawler') {
+            crawler.push(data[i]['value']);
+          }
+     }
 
       var data_update = {
         x: [event_times, event_times],
@@ -188,13 +200,13 @@ function interval_updates(){
   // 4xx updates
   var interval_4xx = setInterval(function() {
 
-    $.getJSON($SCRIPT_ROOT + 'api/code/4xx/600', function(data) {
+    $.getJSON($SCRIPT_ROOT + 'api/metric/4xx/600', function(data) {
       var event_times = [];
       var count = [];
 
       for (var i=0; i<data.length; i++) {
           event_times.push(data[i]['event_time']);
-          count.push(data[i]['count']);
+          count.push(data[i]['value']);
       }
 
       var data_update = {

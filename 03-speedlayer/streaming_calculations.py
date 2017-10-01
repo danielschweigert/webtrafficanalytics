@@ -22,10 +22,8 @@ CASSANDRA_RESOURCE_LOCATION = 'resources/cassandra.config'
 KAFKA_RESOURCE_LOCATION = 'resources/kafka.config'
 
 CASSANDRA_KEYSPACE = 'webtrafficanalytics'
-CASSANDRA_TABLE_VISITS_TYPE = 'visits_type'
-CASSANDRA_TABLE_VOLUME_TYPE = 'volume_type'
 CASSANDRA_TABLE_VISIT_RANK = 'visit_rank'
-CASSANDRA_TABLE_CODE_COUNT = 'code_count_3'
+CASSANDRA_TABLE_METRICS = 'metrics_1'
 
 # obtain kafka brokers from config
 with open(KAFKA_RESOURCE_LOCATION) as f:
@@ -73,35 +71,6 @@ def update_list(new_values, last_list):
 		return None
 	return new_values[0] + (last_list or [])
 
-def send_count(iter):
-	cassandra_cluster = Cluster(cassandra_hosts)
-	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
-	insert_count = cassandra_session.prepare("UPDATE " + CASSANDRA_TABLE_VISITS_TYPE + " SET total = ? WHERE type = 'all' and event_time = ?")
-	batch = BatchStatement(consistency_level=ConsistencyLevel.ANY)
-	for record in iter:
-		batch.add(insert_count, (record[1], datetime.datetime.strptime(record[0], '%Y-%m-%d %H:%M:%S')))
-	cassandra_session.execute(batch)
-	cassandra_cluster.shutdown()
-
-def send_unique_count(iter):
-	cassandra_cluster = Cluster(cassandra_hosts)
-	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
-	insert_count = cassandra_session.prepare("UPDATE " + CASSANDRA_TABLE_VISITS_TYPE + " SET unique = ? WHERE type = 'all' and event_time = ?")
-	batch = BatchStatement(consistency_level=ConsistencyLevel.ANY)
-	for record in iter:
-		batch.add(insert_count, (record[1], datetime.datetime.strptime(record[0], '%Y-%m-%d %H:%M:%S')))
-	cassandra_session.execute(batch)
-	cassandra_cluster.shutdown()	
-
-def send_volume(iter):
-	cassandra_cluster = Cluster(cassandra_hosts)
-	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)	
-	for record in iter:
-		field = 'crawler' if record[0][20] == '1' else 'human'
-		sql_statement = "UPDATE " + CASSANDRA_TABLE_VOLUME_TYPE + " SET " + field + " = " + str(record[1]) + " WHERE type = 'all' and event_time = \'" + record[0][0:19] + "\'"
-		cassandra_session.execute(sql_statement)
-	cassandra_cluster.shutdown()
-
 def send_click_rank(iter):
 	cassandra_cluster = Cluster(cassandra_hosts)
 	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
@@ -122,21 +91,19 @@ def send_volume_rank(iter):
 	cassandra_session.execute(batch)
 	cassandra_cluster.shutdown()
 
-def send_code_count(iter):
+def metrics_to_cassandra(iter):
 	cassandra_cluster = Cluster(cassandra_hosts)
 	cassandra_session = cassandra_cluster.connect(CASSANDRA_KEYSPACE)
-	insert_code_count = cassandra_session.prepare("INSERT INTO " + CASSANDRA_TABLE_CODE_COUNT + " (type, event_time, count) VALUES ('4xx', ?, ?)")
+	insert_code_count = cassandra_session.prepare("INSERT INTO " + CASSANDRA_TABLE_METRICS + " (type, event_time, value) VALUES (?, ?, ?)")
 	batch = BatchStatement(consistency_level=ConsistencyLevel.ANY)
 	for record in iter:
-		batch.add(insert_code_count, (datetime.datetime.strptime(record[0], '%Y-%m-%d %H:%M:%S'), record[1]))
+		batch.add(insert_code_count, (record[0], datetime.datetime.strptime(record[1], '%Y-%m-%d %H:%M:%S'), record[2]))
 	cassandra_session.execute(batch)
 	cassandra_cluster.shutdown()	
 
 # registering the spark context
-conf = SparkConf().setAppName("03-streaming_calculations")
+conf = SparkConf().setAppName("streaming_calculations")
 sc = SparkContext(conf=conf)
-
-#spark = SparkSession.builder.appName("StructuredNetworkWordCount").getOrCreate()
 
 # this is only necessary for manual run and debugging
 logger = sc._jvm.org.apache.log4j
@@ -151,41 +118,69 @@ ssc.checkpoint("hdfs://ec2-13-57-66-131.us-west-1.compute.amazonaws.com:9000/che
 initialStateRDD = sc.parallelize([])
 
 # obtaining stream from Kafka
-kafka_topic = 'testlogs20'
+kafka_topic = 'testlogs3'
 kafkaStream = KafkaUtils.createDirectStream(ssc, [kafka_topic], {"metadata.broker.list": kafka_brokers}, valueDecoder=avro_decoder)
 kafkaStream.cache()
 
 # aggregations (by sec)
-visits = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], 1)).reduceByKey(lambda a, b : a + b).updateStateByKey(update_sum, initialRDD=initialStateRDD)
+visits_ip = kafkaStream.map(lambda x : (x[1]['date'] + ' ' + x[1]['time'], [x[1]['ip']]))\
+					   .reduceByKey(lambda a, b : a + b)\
+					   .updateStateByKey(update_list, initialRDD=initialStateRDD)
+visits_ip.cache()
+visits = visits_ip.map(lambda x : (x[0], len(x[1])))\
+				       .reduceByKey(lambda a, b : a + b)\
+				       .map(lambda x : ('total_visits', x[0], x[1]))
 
-visits_ip = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], [x['ip']])).reduceByKey(lambda a, b : a + b).updateStateByKey(update_list, initialRDD=initialStateRDD)
-visits_unique = visits_ip.flatMap(lambda x : [x[0] + ' ' + xx for xx in x[1]]).map(lambda x : (x, 1)).reduceByKey(lambda a, b : None).map(lambda x : (x[0][0:19], 1)).reduceByKey(lambda a, b : a + b)
-volume_crawler = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'], [(x['crawler'], x['size'])])).reduceByKey(lambda a, b : a + b).updateStateByKey(update_list, initialRDD=initialStateRDD)
-volume_crawler_sum = volume_crawler.flatMap(lambda x : [x[0] + ' ' + str(xx[0]) + ' ' + str(xx[1]) for xx in x[1]]).map(lambda x : (x[0:21], int(x.split(' ')[3]))).reduceByKey(lambda a, b : a + b)
+visits_unique = visits_ip.flatMap(lambda x : [x[0] + ' ' + xx for xx in x[1]])\
+					   .map(lambda x : (x, 1))\
+					   .reduceByKey(lambda a, b : None)\
+					   .map(lambda x : (x[0][0:19], 1))\
+					   .reduceByKey(lambda a, b : a + b)\
+					   .map(lambda x : ('unique_visits', x[0], x[1]))
+
+volume_crawler = kafkaStream.map(lambda x : (x[1]['date'] + ' ' + x[1]['time'], [(x[1]['crawler'], x[1]['size'])]))\
+					   .reduceByKey(lambda a, b : a + b)\
+					   .updateStateByKey(update_list, initialRDD=initialStateRDD)
+volume_crawler_sum = volume_crawler.flatMap(lambda x : [x[0] + ' ' + str(xx[0]) + ' ' + str(xx[1]) for xx in x[1]])\
+					   .map(lambda x : (x[0:21], int(x.split(' ')[3])))\
+					   .reduceByKey(lambda a, b : a + b)\
+					   .map(lambda x : ('volume_crawler' if x[0][20] == '1' else 'volume_human', x[0][0:19], x[1]))
 
 # visit aggregations (by min)
-visits_ip_min = kafkaStream.map(lambda x : x[1]).map(lambda x : (x['date'] + ' ' + x['time'][0:5], [(x['ip'], x['size'])])).reduceByKey(lambda a, b : a + b).updateStateByKey(update_list, initialRDD=initialStateRDD)
+visits_ip_min = kafkaStream.map(lambda x : (x[1]['date'] + ' ' + x[1]['time'][0:5], [(x[1]['ip'], x[1]['size'])]))\
+					   .reduceByKey(lambda a, b : a + b)\
+					   .updateStateByKey(update_list, initialRDD=initialStateRDD)
 visits_ip_min_flat = visits_ip_min.flatMap(lambda x : [x[0] + ' ' + str(xx[0]) + ' , ' + str(xx[1]) for xx in x[1]])
 visits_ip_min_flat.cache()
 
 # top 10 visitors by clicks
-click_rank = visits_ip_min_flat.map(lambda x : (x.split(' , ')[0], 1)).reduceByKey(lambda a, b : a + b).transform(lambda x : x.sortBy(lambda y : (y[0][0:16], y[1]), ascending=False))
-click_rank_top_10 = click_rank.transform(lambda x : x.zipWithIndex().filter(lambda x : x[1] < 10))
+click_rank = visits_ip_min_flat.map(lambda x : (x.split(' , ')[0], 1))\
+					   .reduceByKey(lambda a, b : a + b)\
+					   .transform(lambda x : x.sortBy(lambda y : (y[0][0:16], y[1]), ascending=False))
+click_rank_top_10 = click_rank.transform(lambda x : x.zipWithIndex()\
+					   .filter(lambda x : x[1] < 10))
 
 # top 10 visitors by volume
-volume_rank = visits_ip_min_flat.map(lambda x : (x.split(' , ')[0], int(x.split(' , ')[1]))).reduceByKey(lambda a, b : a + b).transform(lambda x : x.sortBy(lambda y : (y[0][0:16], y[1]), ascending=False))
-volume_rank_top_10 = volume_rank.transform(lambda x : x.zipWithIndex().filter(lambda x : x[1] < 10))
+volume_rank = visits_ip_min_flat.map(lambda x : (x.split(' , ')[0], int(x.split(' , ')[1])))\
+					   .reduceByKey(lambda a, b : a + b)\
+					   .transform(lambda x : x.sortBy(lambda y : (y[0][0:16], y[1]), ascending=False))
+volume_rank_top_10 = volume_rank.transform(lambda x : x.zipWithIndex()\
+					   .filter(lambda x : x[1] < 10))
 
 # client side error code count
-codes_4xx = kafkaStream.filter(lambda x : x[1]['code'][0] == '4').map(lambda x : (x[1]['date'] + ' ' + x[1]['time'], 1)).reduceByKey(lambda a, b: a + b).updateStateByKey(update_sum, initialRDD=initialStateRDD)
+codes_4xx = kafkaStream.filter(lambda x : x[1]['code'][0] == '4')\
+					   .map(lambda x : (x[1]['date'] + ' ' + x[1]['time'], 1))\
+					   .reduceByKey(lambda a, b: a + b)\
+					   .updateStateByKey(update_sum, initialRDD=initialStateRDD)
+codes_4xx = codes_4xx.map(lambda x : ('4xx', x[0], x[1]))
 
 # insert to Cassandra database
-visits.foreachRDD(lambda rdd: rdd.foreachPartition(send_count))
-visits_unique.foreachRDD(lambda rdd: rdd.foreachPartition(send_unique_count))
-volume_crawler_sum.foreachRDD(lambda rdd: rdd.foreachPartition(send_volume))
 click_rank_top_10.foreachRDD(lambda rdd: rdd.foreachPartition(send_click_rank))
 volume_rank_top_10.foreachRDD(lambda rdd: rdd.foreachPartition(send_volume_rank))
-codes_4xx.foreachRDD(lambda rdd: rdd.foreachPartition(send_code_count))
+codes_4xx.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
+visits.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
+visits_unique.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
+volume_crawler_sum.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
 
 # start
 ssc.start()
