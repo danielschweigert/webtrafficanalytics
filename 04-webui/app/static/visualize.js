@@ -1,4 +1,224 @@
 
+function plot_visits_time(data){
+
+  var event_times = [];
+  var total = [];
+  var unique = [];
+
+   for (var i=0; i<data.length; i++) {
+        event_times.push(data[i]['event_time']);
+        total.push(data[i]['total']);
+        unique.push(data[i]['unique']);
+   }
+
+  var trace1 = {
+    type: "scatter",
+    mode: "markers",
+    name: 'total',
+    x: event_times,
+    y: total,
+    line: {color: '#17BECF'}
+  };
+
+  var trace2 = {
+    type: "scatter",
+    mode: "markers",
+    name: 'unique',
+    x: event_times,
+    y: unique,
+    line: {color: '#7F7F7F'}
+  };
+
+  var data = [trace1, trace2];
+
+  var layout = {
+    title: 'Website requests over time',
+     yaxis: {title: '# visits'},
+  };
+
+  Plotly.newPlot('chart_clicks', data, layout);
+}
+
+
+function plot_volume_time(data){
+
+  var event_times = [];
+  var human = [];
+  var crawler = [];
+
+   for (var i=0; i<data.length; i++) {
+        event_times.push(data[i]['event_time']);
+        human.push(data[i]['human']);
+        crawler.push(data[i]['crawler']);
+   }
+
+  var trace1 = {
+    type: "scatter",
+    mode: "markers",
+    name: 'human',
+    x: event_times,
+    y: human,
+    line: {color: '#17BECF'}
+  };
+
+  var trace2 = {
+    type: "scatter",
+    mode: "markers",
+    name: 'crawler',
+    x: event_times,
+    y: crawler,
+    line: {color: '#7F7F7F'}
+  };
+
+  var data = [trace1, trace2];
+
+  var layout = {
+    title: 'Website traffic volume over time',
+    yaxis: {title: 'volume (MB)'},
+  };
+
+  Plotly.newPlot('chart_volume', data, layout);
+}
+
+
+function plot_4xx_time(data){
+
+  var event_times = [];
+  var count = [];
+
+   for (var i=0; i<data.length; i++) {
+        event_times.push(data[i]['event_time']);
+        count.push(data[i]['count']);
+   }
+
+  var trace1 = {
+    type: "scatter",
+    mode: "markers",
+    name: 'HTTP 4xx',
+    x: event_times,
+    y: count,
+    line: {color: '#17BECF'}
+  };
+
+  var data = [trace1];
+
+  var layout = {
+    title: 'HTTP status 4XX over time',
+  };
+
+  Plotly.newPlot('chart_4xx_time', data, layout);
+}
+
+
+
+function start_graphs(){
+  load_dashboards();
+  interval_updates();
+}
+
+
+function load_dashboards(){
+
+  // visits plot
+  $.getJSON($SCRIPT_ROOT + 'api/visits/600', function(data) {
+    plot_visits_time(data)
+  });
+
+  // volume plot
+  $.getJSON($SCRIPT_ROOT + 'api/volume/600', function(data) {
+    plot_volume_time(data)
+  });
+
+  // HTTP4xx plot
+  $.getJSON($SCRIPT_ROOT + 'api/code/4xx/600', function(data) {
+    plot_4xx_time(data)
+  });
+
+}
+
+
+function interval_updates(){
+
+  // visits update
+  var interval_vists = setInterval(function() {
+
+    $.getJSON($SCRIPT_ROOT + 'api/visits/600', function(data) {
+      var event_times = [];
+      var total = [];
+      var unique = [];
+
+      for (var i=0; i<data.length; i++) {
+          event_times.push(data[i]['event_time']);
+          total.push(data[i]['total']);
+          unique.push(data[i]['unique']);
+      }
+
+      var data_update = {
+        x: [event_times, event_times],
+        y: [total, unique]
+      }
+
+      Plotly.update('chart_clicks', data_update);
+    });
+  }, 5000);
+
+  // volume updates
+  var interval_volume = setInterval(function() {
+
+    $.getJSON($SCRIPT_ROOT + 'api/volume/600', function(data) {
+      var event_times = [];
+      var human = [];
+      var crawler = [];
+
+      for (var i=0; i<data.length; i++) {
+          event_times.push(data[i]['event_time']);
+          human.push(data[i]['human']);
+          crawler.push(data[i]['crawler']);
+      }
+
+      var data_update = {
+        x: [event_times, event_times],
+        y: [human, crawler]
+      }
+
+      Plotly.update('chart_volume', data_update);
+    });
+  }, 5000);
+
+  // 4xx updates
+  var interval_4xx = setInterval(function() {
+
+    $.getJSON($SCRIPT_ROOT + 'api/code/4xx/600', function(data) {
+      var event_times = [];
+      var count = [];
+
+      for (var i=0; i<data.length; i++) {
+          event_times.push(data[i]['event_time']);
+          count.push(data[i]['count']);
+      }
+
+      var data_update = {
+        x: [event_times],
+        y: [count]
+      }
+
+      Plotly.update('chart_4xx_time', data_update);
+    });
+  }, 5000);
+
+
+}
+
+
+
+
+
+
+
+
+
+/*
+
 // dashboard: website requests (total and unqiue)
 Plotly.d3.csv("static/visits.csv", function(err, rows){
   function unpack(rows, key) {
@@ -27,6 +247,7 @@ var data = [trace1,trace2];
 
 var layout = {
   title: 'Website requests over time',
+   yaxis: {title: '# visits'},
 };
 
 Plotly.newPlot('chart_clicks', data, layout);
@@ -60,7 +281,8 @@ var trace2 = {
 var data = [trace1,trace2];
 
 var layout = {
-  title: 'Website requests over time',
+  title: 'Website traffic volume over time',
+  yaxis: {title: 'volume (MB)'},
 };
 
 Plotly.newPlot('chart_volume', data, layout);
@@ -83,6 +305,7 @@ var data = [
 
 var layout = {
   title: 'Top 10 visitors by clicks (past minute)',
+  yaxis: {title: '# visits'},
 };
 
 Plotly.newPlot('chart_top_ip_visits', data, layout);
@@ -104,6 +327,7 @@ var data = [
 
 var layout = {
   title: 'Top 10 visitors by volume (past minute)',
+  yaxis: {title: 'volume (MB)'},
 };
 
 Plotly.newPlot('chart_top_ip_volume', data, layout);
@@ -134,3 +358,6 @@ var layout = {
 
 Plotly.newPlot('chart_4xx_time', data, layout);
 });
+
+
+*/

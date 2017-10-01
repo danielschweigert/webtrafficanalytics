@@ -4,12 +4,16 @@
 		Web Traffic Dashboard
 	</title>
 
-	<!--<script src="https://d3js.org/d3.v4.min.js"></script>-->
 	<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+	<script type="text/javascript">
+      var $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
+    </script>
+	<script src="{{ url_for('static', filename='jquery-3.2.1.min.js') }}"></script>
 	<script type="text/javascript" src="{{ url_for('static', filename='visualize.js') }}"></script>
+	
 </head>
 
-<body>
+<body onload="start_graphs()">
 
 	<table>
 		<tr>
@@ -25,6 +29,6 @@
 
 </body>
 
-</body>
+
 
 </html>
