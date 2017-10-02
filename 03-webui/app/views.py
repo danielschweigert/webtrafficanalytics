@@ -27,6 +27,7 @@ def slides():
     return redirect(\
     	"https://docs.google.com/presentation/d/1fibz_wxp-qUf5S8smS55-60Jl-MChfEkpLwGthqjaLg/edit#slide=id.p")
 
+
 @app.route('/api/metric/<metrics>/<last_seconds>')
 def get_metric(metrics, last_seconds):
 	if not last_seconds.isdigit():
@@ -46,7 +47,7 @@ def get_metric(metrics, last_seconds):
 
 		# filling missing timestamps with 0. If no events were recorded, there is no entry in Cassandra
 		t_i = datetime.datetime.strptime(cutt_off_time, '%Y-%m-%d %H:%M:%S')
-		while t_i < (now - datetime.timedelta(hours=7, seconds=5)):
+		while t_i < (now - datetime.timedelta(hours=7, seconds=8)):
 			t_s = t_i.strftime('%Y-%m-%d %H:%M:%S')
 			if t_s not in contained_timestamps:
 				jsonresponse.append({"event_time": t_s, "value": 0, "type": metric})

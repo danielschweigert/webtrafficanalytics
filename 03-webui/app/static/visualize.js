@@ -110,39 +110,11 @@ function plot_HTTP_code_time(data, name, title, div_id){
 
   var layout = {
     title: title,
+    yaxis: {title: 'count'},
   };
 
   Plotly.newPlot(div_id, data, layout);
 
-}
-
-
-function plot_4xx_time(data){
-
-  var event_times = [];
-  var count = [];
-
-   for (var i=0; i<data.length; i++) {
-        event_times.push(data[i]['event_time']);
-        count.push(data[i]['value']);
-   }
-
-  var trace1 = {
-    type: "scatter",
-    mode: "markers",
-    name: 'HTTP 4xx',
-    x: event_times,
-    y: count,
-    line: {color: '#17BECF'}
-  };
-
-  var data = [trace1];
-
-  var layout = {
-    title: 'HTTP status 4XX over time',
-  };
-
-  Plotly.newPlot('chart_4xx_time', data, layout);
 }
 
 function plot_top10_clicks(data){
@@ -198,6 +170,9 @@ function plot_top10_volume(data){
 }
 
 
+
+
+
 function start_graphs(){
   load_dashboards();
   interval_updates();
@@ -234,8 +209,6 @@ function load_dashboards(){
   // HTTP4xx plot
   $.getJSON($SCRIPT_ROOT + 'api/metric/4xx/600', function(data) {
     plot_HTTP_code_time(data, 'HTTP 4xx', 'HTTP status 4XX over time', 'chart_4xx_time');
-
-    //plot_4xx_time(data)
   });
 
   // HTTP5xx plot
@@ -244,12 +217,12 @@ function load_dashboards(){
   });
 
 
-  // HTTP4xx plot
+  // top 10 clicks
   $.getJSON($SCRIPT_ROOT + 'api/top10/clicks', function(data) {
     plot_top10_clicks(data)
   });
 
-  // HTTP4xx plot
+  // top 10 volume
   $.getJSON($SCRIPT_ROOT + 'api/top10/volume', function(data) {
     plot_top10_volume(data)
   });
@@ -311,7 +284,70 @@ function interval_updates(){
     });
   }, 5000);
 
-  // 4xx updates
+  //1xx updates
+  var interval_4xx = setInterval(function() {
+
+    $.getJSON($SCRIPT_ROOT + 'api/metric/1xx/600', function(data) {
+      var event_times = [];
+      var count = [];
+
+      for (var i=0; i<data.length; i++) {
+          event_times.push(data[i]['event_time']);
+          count.push(data[i]['value']);
+      }
+
+      var data_update = {
+        x: [event_times],
+        y: [count]
+      }
+
+      Plotly.update('chart_1xx_time', data_update);
+    });
+  }, 5000);
+
+  //2xx updates
+  var interval_4xx = setInterval(function() {
+
+    $.getJSON($SCRIPT_ROOT + 'api/metric/2xx/600', function(data) {
+      var event_times = [];
+      var count = [];
+
+      for (var i=0; i<data.length; i++) {
+          event_times.push(data[i]['event_time']);
+          count.push(data[i]['value']);
+      }
+
+      var data_update = {
+        x: [event_times],
+        y: [count]
+      }
+
+      Plotly.update('chart_2xx_time', data_update);
+    });
+  }, 5000);
+
+  //3xx updates
+  var interval_4xx = setInterval(function() {
+
+    $.getJSON($SCRIPT_ROOT + 'api/metric/3xx/600', function(data) {
+      var event_times = [];
+      var count = [];
+
+      for (var i=0; i<data.length; i++) {
+          event_times.push(data[i]['event_time']);
+          count.push(data[i]['value']);
+      }
+
+      var data_update = {
+        x: [event_times],
+        y: [count]
+      }
+
+      Plotly.update('chart_3xx_time', data_update);
+    });
+  }, 5000);
+
+  //4xx updates
   var interval_4xx = setInterval(function() {
 
     $.getJSON($SCRIPT_ROOT + 'api/metric/4xx/600', function(data) {
@@ -329,6 +365,27 @@ function interval_updates(){
       }
 
       Plotly.update('chart_4xx_time', data_update);
+    });
+  }, 5000);
+
+  //5xx updates
+  var interval_5xx = setInterval(function() {
+
+    $.getJSON($SCRIPT_ROOT + 'api/metric/5xx/600', function(data) {
+      var event_times = [];
+      var count = [];
+
+      for (var i=0; i<data.length; i++) {
+          event_times.push(data[i]['event_time']);
+          count.push(data[i]['value']);
+      }
+
+      var data_update = {
+        x: [event_times],
+        y: [count]
+      }
+
+      Plotly.update('chart_5xx_time', data_update);
     });
   }, 5000);
 
@@ -375,156 +432,3 @@ function interval_updates(){
   }, 60000);  
 
 }
-
-
-
-
-
-
-
-
-
-/*
-
-// dashboard: website requests (total and unqiue)
-Plotly.d3.csv("static/visits.csv", function(err, rows){
-  function unpack(rows, key) {
-  return rows.map(function(row) { return row[key]; });
-}
-
-var trace1 = {
-  type: "scatter",
-  mode: "markers",
-  name: 'total',
-  x: unpack(rows, 'time'),
-  y: unpack(rows, 'total'),
-  line: {color: '#17BECF'}
-}
-
-var trace2 = {
-  type: "scatter",
-  mode: "markers",
-  name: 'unique',
-  x: unpack(rows, 'time'),
-  y: unpack(rows, 'unique'),
-  line: {color: '#7F7F7F'}
-}
-
-var data = [trace1,trace2];
-
-var layout = {
-  title: 'Website requests over time',
-   yaxis: {title: '# visits'},
-};
-
-Plotly.newPlot('chart_clicks', data, layout);
-})
-
-
-// dashboard: volume requested (human and crawler)
-Plotly.d3.csv("static/volume.csv", function(err, rows){
-  function unpack(rows, key) {
-  return rows.map(function(row) { return row[key]; });
-}
-
-var trace1 = {
-  type: "scatter",
-  mode: "markers",
-  name: 'crawler',
-  x: unpack(rows, 'time'),
-  y: unpack(rows, 'crawler'),
-  line: {color: '#17BECF'}
-}
-
-var trace2 = {
-  type: "scatter",
-  mode: "markers",
-  name: 'human',
-  x: unpack(rows, 'time'),
-  y: unpack(rows, 'human'),
-  line: {color: '#7F7F7F'}
-}
-
-var data = [trace1,trace2];
-
-var layout = {
-  title: 'Website traffic volume over time',
-  yaxis: {title: 'volume (MB)'},
-};
-
-Plotly.newPlot('chart_volume', data, layout);
-});
-
-
-// Chart with top 10 visitors by clicks
-Plotly.d3.csv("static/visits_top10_clicks.csv", function(err, rows){
-  function unpack(rows, key) {
-  return rows.map(function(row) { return row[key]; });
-}
-
-var data = [
-  {
-    x: unpack(rows, 'ip'),
-    y: unpack(rows, 'visits'),
-    type: 'bar'
-  }
-]
-
-var layout = {
-  title: 'Top 10 visitors by clicks (past minute)',
-  yaxis: {title: '# visits'},
-};
-
-Plotly.newPlot('chart_top_ip_visits', data, layout);
-});
-
-// Chart with top 10 visitors by volume
-Plotly.d3.csv("static/visits_top10_volume.csv", function(err, rows){
-  function unpack(rows, key) {
-  return rows.map(function(row) { return row[key]; });
-}
-
-var data = [
-  {
-    x: unpack(rows, 'ip'),
-    y: unpack(rows, 'volume'),
-    type: 'bar'
-  }
-]
-
-var layout = {
-  title: 'Top 10 visitors by volume (past minute)',
-  yaxis: {title: 'volume (MB)'},
-};
-
-Plotly.newPlot('chart_top_ip_volume', data, layout);
-});
-
-
-// dashboard: 4xx count by time
-Plotly.d3.csv("static/code_count.csv", function(err, rows){
-  function unpack(rows, key) {
-  return rows.map(function(row) { return row[key]; });
-}
-
-var trace1 = {
-  type: "scatter",
-  mode: "markers",
-  name: 'HTTP 4xx',
-  x: unpack(rows, 'time'),
-  y: unpack(rows, 'count'),
-  line: {color: '#17BECF'}
-}
-
-
-var data = [trace1];
-
-var layout = {
-  title: 'HTTP status 4XX over time',
-};
-
-Plotly.newPlot('chart_4xx_time', data, layout);
-});
-
-
-*/

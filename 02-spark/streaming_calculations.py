@@ -185,14 +185,6 @@ volume_rank_top_10 = volume_rank.transform(lambda x : x.zipWithIndex()\
 					   .filter(lambda x : x[1] < 10))
 
 # client side error code count
-codes_4xx = kafkaStream.filter(lambda x : len(x[1]['code'])>0)\
-					   .filter(lambda x : x[1]['code'][0] == '4')\
-					   .map(lambda x : (x[1]['date'] + ' ' + x[1]['time'], 1))\
-					   .reduceByKey(lambda a, b: a + b)\
-					   .updateStateByKey(update_sum, initialRDD=initialStateRDD)
-codes_4xx = codes_4xx.map(lambda x : ('4xx', x[0], x[1]))
-
-
 codes_1xx = kafkaStream.filter(lambda x : len(x[1]['code'])>0)\
 					   .filter(lambda x : x[1]['code'][0] == '1')\
 					   .map(lambda x : (x[1]['date'] + ' ' + x[1]['time'], 1))\
@@ -215,6 +207,20 @@ codes_3xx = kafkaStream.filter(lambda x : len(x[1]['code'])>0)\
 					   .updateStateByKey(update_sum, initialRDD=initialStateRDD)
 codes_3xx = codes_3xx.map(lambda x : ('3xx', x[0], x[1]))
 
+codes_4xx = kafkaStream.filter(lambda x : len(x[1]['code'])>0)\
+					   .filter(lambda x : x[1]['code'][0] == '4')\
+					   .map(lambda x : (x[1]['date'] + ' ' + x[1]['time'], 1))\
+					   .reduceByKey(lambda a, b: a + b)\
+					   .updateStateByKey(update_sum, initialRDD=initialStateRDD)
+codes_4xx = codes_4xx.map(lambda x : ('4xx', x[0], x[1]))
+
+codes_5xx = kafkaStream.filter(lambda x : len(x[1]['code'])>0)\
+					   .filter(lambda x : x[1]['code'][0] == '5')\
+					   .map(lambda x : (x[1]['date'] + ' ' + x[1]['time'], 1))\
+					   .reduceByKey(lambda a, b: a + b)\
+					   .updateStateByKey(update_sum, initialRDD=initialStateRDD)
+codes_5xx = codes_5xx.map(lambda x : ('5xx', x[0], x[1]))
+
 
 # insert to Cassandra database
 click_rank_top_10.foreachRDD(lambda rdd: rdd.foreachPartition(send_click_rank))
@@ -223,7 +229,7 @@ codes_1xx.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
 codes_2xx.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
 codes_3xx.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
 codes_4xx.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
-#codes_5xx.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
+codes_5xx.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
 visits.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
 visits_unique.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
 volume_crawler_sum.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
