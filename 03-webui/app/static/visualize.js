@@ -37,6 +37,7 @@ function plot_visits_time(data){
   var layout = {
     title: 'Website requests over time',
      yaxis: {title: '# visits'},
+     font: {size: 18}
   };
 
   Plotly.newPlot('chart_clicks', data, layout);
@@ -81,6 +82,7 @@ function plot_volume_time(data){
   var layout = {
     title: 'Website traffic volume over time',
     yaxis: {title: 'volume (MB)'},
+    font: {size: 18}
   };
 
   Plotly.newPlot('chart_volume', data, layout);
@@ -111,6 +113,7 @@ function plot_HTTP_code_time(data, name, title, div_id){
   var layout = {
     title: title,
     yaxis: {title: 'count'},
+    font: {size: 18}
   };
 
   Plotly.newPlot(div_id, data, layout);
@@ -138,6 +141,7 @@ function plot_top10_clicks(data){
   var layout = {
     title: 'Top 10 visitors by clicks (past minute)',
     yaxis: {title: '# visits'},
+    font: {size: 18}
   };
 
   Plotly.newPlot('chart_top_ip_visits', data, layout);
@@ -164,6 +168,7 @@ function plot_top10_volume(data){
   var layout = {
     title: 'Top 10 visitors by volume (past minute)',
     yaxis: {title: 'volume (MB)'},
+    font: {size: 18}
   };
 
   Plotly.newPlot('chart_top_ip_volume', data, layout);
