@@ -192,10 +192,38 @@ codes_4xx = kafkaStream.filter(lambda x : len(x[1]['code'])>0)\
 					   .updateStateByKey(update_sum, initialRDD=initialStateRDD)
 codes_4xx = codes_4xx.map(lambda x : ('4xx', x[0], x[1]))
 
+
+codes_1xx = kafkaStream.filter(lambda x : len(x[1]['code'])>0)\
+					   .filter(lambda x : x[1]['code'][0] == '1')\
+					   .map(lambda x : (x[1]['date'] + ' ' + x[1]['time'], 1))\
+					   .reduceByKey(lambda a, b: a + b)\
+					   .updateStateByKey(update_sum, initialRDD=initialStateRDD)
+codes_1xx = codes_1xx.map(lambda x : ('1xx', x[0], x[1]))
+
+codes_2xx = kafkaStream.filter(lambda x : len(x[1]['code'])>0)\
+					   .filter(lambda x : x[1]['code'][0] == '2')\
+					   .map(lambda x : (x[1]['date'] + ' ' + x[1]['time'], 1))\
+					   .reduceByKey(lambda a, b: a + b)\
+					   .updateStateByKey(update_sum, initialRDD=initialStateRDD)
+codes_2xx = codes_2xx.map(lambda x : ('2xx', x[0], x[1]))
+
+
+codes_3xx = kafkaStream.filter(lambda x : len(x[1]['code'])>0)\
+					   .filter(lambda x : x[1]['code'][0] == '3')\
+					   .map(lambda x : (x[1]['date'] + ' ' + x[1]['time'], 1))\
+					   .reduceByKey(lambda a, b: a + b)\
+					   .updateStateByKey(update_sum, initialRDD=initialStateRDD)
+codes_3xx = codes_3xx.map(lambda x : ('3xx', x[0], x[1]))
+
+
 # insert to Cassandra database
 click_rank_top_10.foreachRDD(lambda rdd: rdd.foreachPartition(send_click_rank))
 volume_rank_top_10.foreachRDD(lambda rdd: rdd.foreachPartition(send_volume_rank))
+codes_1xx.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
+codes_2xx.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
+codes_3xx.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
 codes_4xx.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
+#codes_5xx.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
 visits.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
 visits_unique.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))
 volume_crawler_sum.foreachRDD(lambda rdd: rdd.foreachPartition(metrics_to_cassandra))

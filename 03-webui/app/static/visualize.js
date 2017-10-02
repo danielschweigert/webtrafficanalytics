@@ -87,6 +87,36 @@ function plot_volume_time(data){
 }
 
 
+function plot_HTTP_code_time(data, name, title, div_id){
+
+  var event_times = [];
+  var count = [];
+
+   for (var i=0; i<data.length; i++) {
+        event_times.push(data[i]['event_time']);
+        count.push(data[i]['value']);
+   }
+
+  var trace1 = {
+    type: "scatter",
+    mode: "markers",
+    name: name,
+    x: event_times,
+    y: count,
+    line: {color: '#17BECF'}
+  };
+
+  var data = [trace1];
+
+  var layout = {
+    title: title,
+  };
+
+  Plotly.newPlot(div_id, data, layout);
+
+}
+
+
 function plot_4xx_time(data){
 
   var event_times = [];
@@ -186,10 +216,33 @@ function load_dashboards(){
     plot_volume_time(data)
   });
 
+  // HTTP1xx plot
+  $.getJSON($SCRIPT_ROOT + 'api/metric/1xx/600', function(data) {
+    plot_HTTP_code_time(data, 'HTTP 1xx', 'HTTP status 1XX over time', 'chart_1xx_time');
+  });
+
+  // HTTP2xx plot
+  $.getJSON($SCRIPT_ROOT + 'api/metric/2xx/600', function(data) {
+    plot_HTTP_code_time(data, 'HTTP 2xx', 'HTTP status 2XX over time', 'chart_2xx_time');
+  });
+
+  // HTTP3xx plot
+  $.getJSON($SCRIPT_ROOT + 'api/metric/3xx/600', function(data) {
+    plot_HTTP_code_time(data, 'HTTP 3xx', 'HTTP status 3XX over time', 'chart_3xx_time');
+  });
+
   // HTTP4xx plot
   $.getJSON($SCRIPT_ROOT + 'api/metric/4xx/600', function(data) {
-    plot_4xx_time(data)
+    plot_HTTP_code_time(data, 'HTTP 4xx', 'HTTP status 4XX over time', 'chart_4xx_time');
+
+    //plot_4xx_time(data)
   });
+
+  // HTTP5xx plot
+  $.getJSON($SCRIPT_ROOT + 'api/metric/5xx/600', function(data) {
+    plot_HTTP_code_time(data, 'HTTP 5xx', 'HTTP status 5XX over time', 'chart_5xx_time');
+  });
+
 
   // HTTP4xx plot
   $.getJSON($SCRIPT_ROOT + 'api/top10/clicks', function(data) {
