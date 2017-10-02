@@ -41,6 +41,9 @@ producer = KafkaProducer(bootstrap_servers=bootstrap_servers[0] + ':' + port, ac
 # Avro schema
 schema = avro.schema.parse(open(SCHEMA_PATH).read())
 
+# starttime for periodicity
+start = datetime.datetime.now() + timedelta(hours=-7)
+
 # report to console
 print 'data flow started: ' + str(datetime.datetime.now())
 print 'bootstrap_servers: ' + ','.join(bootstrap_servers)
@@ -59,7 +62,7 @@ while True:
 					print 'error in file : ' + file_path
 				now = datetime.datetime.now()
 				now = now + timedelta(hours=-7)
-				time.sleep(abs(math.sin(math.pi*now.second/50.0))*0.0001)
+				time.sleep(abs(math.sin(math.pi*(now - start).total_seconds()/700.0))*abs(random.gauss(0.001, 0.001)))
 				record['date'] = now.strftime('%Y-%m-%d')
 				record['time'] = now.strftime('%H:%M:%S')
 				writer = avro.io.DatumWriter(schema)
