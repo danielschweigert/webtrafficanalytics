@@ -29,14 +29,29 @@ def slides():
 
 @app.route('/api/metric/<metrics>/<last_seconds>')
 def get_metric(metrics, last_seconds):
+	if not last_seconds.isdigit():
+		return jsonify([])
+	now = datetime.datetime.now()
+	cutt_off_time = (now - datetime.timedelta(hours=7, seconds=int(last_seconds))).strftime('%Y-%m-%d %H:%M:%S')
 	jsonresponse = []
 	for metric in metrics.split(','):
-		stmt = """SELECT event_time, value from metrics_1 WHERE type = %s order by event_time desc limit %s"""
-		response = session.execute(stmt, parameters=[metric, int(last_seconds)])
+		stmt = "SELECT event_time, value from metrics_1 WHERE type = %s and event_time >= %s"
+		response = session.execute(stmt, parameters=[metric, cutt_off_time])
 		response_list = []
+		contained_timestamps = []
 		for val in response:
 			response_list.append(val)
+			contained_timestamps.append(val.event_time.strftime('%Y-%m-%d %H:%M:%S'))
 		jsonresponse += [{"event_time": x.event_time.strftime('%Y-%m-%d %H:%M:%S'), "value": x.value, "type": metric} for x in response_list]
+
+		# filling missing timestamps with 0. If no events were recorded, there is no entry in Cassandra
+		t_i = datetime.datetime.strptime(cutt_off_time, '%Y-%m-%d %H:%M:%S')
+		while t_i < (now - datetime.timedelta(hours=7, seconds=5)):
+			t_s = t_i.strftime('%Y-%m-%d %H:%M:%S')
+			if t_s not in contained_timestamps:
+				jsonresponse.append({"event_time": t_s, "value": 0, "type": metric})
+			t_i = t_i + datetime.timedelta(seconds=1)
+
 	return jsonify(jsonresponse)
 
 @app.route('/api/top10/<metric>')
