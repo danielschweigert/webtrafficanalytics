@@ -36,7 +36,7 @@ def get_metric(metrics, last_seconds):
 	cutt_off_time = (now - datetime.timedelta(hours=7, seconds=int(last_seconds))).strftime('%Y-%m-%d %H:%M:%S')
 	jsonresponse = []
 	for metric in metrics.split(','):
-		stmt = "SELECT event_time, value from metrics_1 WHERE type = %s and event_time >= %s"
+		stmt = "SELECT event_time, value from metrics WHERE type = %s and event_time >= %s"
 		response = session.execute(stmt, parameters=[metric, cutt_off_time])
 		response_list = []
 		contained_timestamps = []

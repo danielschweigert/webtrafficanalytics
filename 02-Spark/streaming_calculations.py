@@ -34,7 +34,7 @@ KAFKA_RESOURCE_LOCATION = 'resources/kafka.config'
 
 CASSANDRA_KEYSPACE = 'webtrafficanalytics'
 CASSANDRA_TABLE_VISIT_RANK = 'visit_rank'
-CASSANDRA_TABLE_METRICS = 'metrics_1'
+CASSANDRA_TABLE_METRICS = 'metrics'
 
 # obtain kafka brokers from config
 with open(KAFKA_RESOURCE_LOCATION) as f:
