@@ -188,8 +188,14 @@ volume_rank_top_10 = volume_rank.transform(lambda x : x.zipWithIndex()\
 					   .filter(lambda x : x[1] < 10))
 
 # http code count
-codes = kafkaStream.filter(lambda x : len(x[1]['code'])>0).map(lambda x : (x[1]['date'] + ' ' + x[1]['time'], [x[1]['code'][0]+'xx'])).reduceByKey(lambda a, b : a + b).updateStateByKey(update_list, initialRDD=initialStateRDD)
-codes_count = codes.flatMap(lambda x : [x[0] + ' ' + xx for xx in x[1]]).map(lambda x : (x, 1)).reduceByKey(lambda a, b : a + b).map(lambda x : ( x[0].split(' ')[2], x[0].split(' ')[0] + ' ' + x[0].split(' ')[1], x[1]))
+codes = kafkaStream.filter(lambda x : len(x[1]['code'])>0)\
+				       .map(lambda x : (x[1]['date'] + ' ' + x[1]['time'], [x[1]['code'][0]+'xx']))\
+				       .reduceByKey(lambda a, b : a + b)\
+				       .updateStateByKey(update_list, initialRDD=initialStateRDD)
+codes_count = codes.flatMap(lambda x : [x[0] + ' ' + xx for xx in x[1]])\
+					   .map(lambda x : (x, 1))\
+					   .reduceByKey(lambda a, b : a + b)\
+					   .map(lambda x : (x[0].split(' ')[2], x[0].split(' ')[0] + ' ' + x[0].split(' ')[1], x[1]))
 
 # insert to Cassandra database
 click_rank_top_10.foreachRDD(lambda rdd: rdd.foreachPartition(send_click_rank))
