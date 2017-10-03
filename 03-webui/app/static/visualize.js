@@ -1,3 +1,8 @@
+/**
+Provides the functions for plotting and continuous updates of the charts.
+Data are obtained through AJAX calls on the API which connects to Cassandra.
+
+**/
 
 function plot_visits_time(data){
 

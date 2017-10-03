@@ -4,6 +4,11 @@ Stream processing of web log data.
 Data is consumed from a Kafka topic as batches in intervals of 5s. Various aggregations
 and calculations are performed and the results are sent to the Cassandra cluster.
 
+
+to run:
+$SPARK_HOME/bin/spark-submit --master spark://ip-10-0-0-7:7077 
+							 --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 
+							 02-spark/streaming_calculations.py
 """
 
 import os
@@ -21,8 +26,6 @@ import avro.io
 import io
 from avro.io import BinaryDecoder
 
-# to run
-# $SPARK_HOME/bin/spark-submit --master spark://ip-10-0-0-7:7077 --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 02-spark/streaming_calculations.py
 
 os.environ['PYSPARK_SUBMIT_ARGS'] = '--packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 pyspark-shell'
 
@@ -220,7 +223,6 @@ codes_5xx = kafkaStream.filter(lambda x : len(x[1]['code'])>0)\
 					   .reduceByKey(lambda a, b: a + b)\
 					   .updateStateByKey(update_sum, initialRDD=initialStateRDD)
 codes_5xx = codes_5xx.map(lambda x : ('5xx', x[0], x[1]))
-
 
 # insert to Cassandra database
 click_rank_top_10.foreachRDD(lambda rdd: rdd.foreachPartition(send_click_rank))
